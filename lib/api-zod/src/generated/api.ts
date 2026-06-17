@@ -220,6 +220,32 @@ export const ListCourseStepsResponse = zod.array(ListCourseStepsResponseItem)
 
 
 /**
+ * @summary Concept graph for a course with the current user's mastery
+ */
+export const ListCourseConceptsParams = zod.object({
+  "courseId": zod.coerce.number()
+})
+
+export const ListCourseConceptsResponse = zod.object({
+  "concepts": zod.array(zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "importance": zod.number().describe('1 (peripheral) to 3 (core\/exam-critical)'),
+  "mastery": zod.number().nullish().describe('0-100 mastery for the current user, null if no evidence yet'),
+  "confidence": zod.number().nullish().describe('0-100 evidence-volume confidence in the mastery estimate'),
+  "band": zod.string().nullish().describe('weak | developing | proficient | strong'),
+  "attempts": zod.number().describe('First-attempt graded interactions on this concept')
+})),
+  "edges": zod.array(zod.object({
+  "prerequisiteConceptId": zod.number(),
+  "dependentConceptId": zod.number()
+}).describe('Prerequisite relationship (prerequisite must precede dependent)'))
+})
+
+
+/**
  * @summary Get a specific lesson step
  */
 export const GetCourseStepParams = zod.object({
@@ -449,6 +475,27 @@ export const GetLearnerModelResponse = zod.object({
 })),
   "strengths": zod.array(zod.string()),
   "focusAreas": zod.array(zod.string()),
+  "conceptMastery": zod.array(zod.object({
+  "conceptId": zod.number(),
+  "title": zod.string(),
+  "courseId": zod.number(),
+  "courseTitle": zod.string().nullish(),
+  "mastery": zod.number().describe('0-100'),
+  "confidence": zod.number().describe('0-100 evidence-volume confidence'),
+  "importance": zod.number(),
+  "attempts": zod.number(),
+  "band": zod.string().describe('weak | developing | proficient | strong')
+})).describe('Per-concept mastery derived from first-attempt performance'),
+  "readinessByCourse": zod.array(zod.object({
+  "courseId": zod.number(),
+  "courseTitle": zod.string().nullish(),
+  "readiness": zod.number().nullable().describe('0-100 concept-rollup readiness for the course'),
+  "conceptCount": zod.number()
+})).describe('Concept-rollup readiness per course'),
+  "prerequisiteRepairs": zod.array(zod.object({
+  "concept": zod.string(),
+  "prerequisite": zod.string()
+})).describe('Weak concepts whose prerequisite is also weak — fix the prerequisite first'),
   "dataPointsCollected": zod.number(),
   "nextInsightAt": zod.number().describe('Graded interactions remaining until the model unlocks')
 }).describe('Evidence-based mastery & exam-readiness model inferred from observed behavior')

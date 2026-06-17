@@ -498,6 +498,39 @@ export interface Calibration {
   sampleSize: number;
 }
 
+export interface ConceptMastery {
+  conceptId: number;
+  title: string;
+  courseId: number;
+  /** @nullable */
+  courseTitle?: string | null;
+  /** 0-100 */
+  mastery: number;
+  /** 0-100 evidence-volume confidence */
+  confidence: number;
+  importance: number;
+  attempts: number;
+  /** weak | developing | proficient | strong */
+  band: string;
+}
+
+export interface CourseReadiness {
+  courseId: number;
+  /** @nullable */
+  courseTitle?: string | null;
+  /**
+     * 0-100 concept-rollup readiness for the course
+     * @nullable
+     */
+  readiness: number | null;
+  conceptCount: number;
+}
+
+export interface PrerequisiteRepair {
+  concept: string;
+  prerequisite: string;
+}
+
 /**
  * Evidence-based mastery & exam-readiness model inferred from observed behavior
  */
@@ -523,9 +556,55 @@ export interface LearnerModel {
   signals: LearnerSignal[];
   strengths: string[];
   focusAreas: string[];
+  /** Per-concept mastery derived from first-attempt performance */
+  conceptMastery: ConceptMastery[];
+  /** Concept-rollup readiness per course */
+  readinessByCourse: CourseReadiness[];
+  /** Weak concepts whose prerequisite is also weak — fix the prerequisite first */
+  prerequisiteRepairs: PrerequisiteRepair[];
   dataPointsCollected: number;
   /** Graded interactions remaining until the model unlocks */
   nextInsightAt: number;
+}
+
+export interface Concept {
+  id: number;
+  courseId: number;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** 1 (peripheral) to 3 (core/exam-critical) */
+  importance: number;
+  /**
+     * 0-100 mastery for the current user, null if no evidence yet
+     * @nullable
+     */
+  mastery?: number | null;
+  /**
+     * 0-100 evidence-volume confidence in the mastery estimate
+     * @nullable
+     */
+  confidence?: number | null;
+  /**
+     * weak | developing | proficient | strong
+     * @nullable
+     */
+  band?: string | null;
+  /** First-attempt graded interactions on this concept */
+  attempts: number;
+}
+
+/**
+ * Prerequisite relationship (prerequisite must precede dependent)
+ */
+export interface ConceptEdge {
+  prerequisiteConceptId: number;
+  dependentConceptId: number;
+}
+
+export interface CourseConcepts {
+  concepts: Concept[];
+  edges: ConceptEdge[];
 }
 
 export interface OpenaiConversation {

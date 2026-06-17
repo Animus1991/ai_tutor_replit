@@ -21,6 +21,13 @@ const CAL_META: Record<string, { label: string; cls: string }> = {
   calibrated: { label: "Well-calibrated", cls: "text-green-400" },
 };
 
+const BAND_META: Record<string, { label: string; cls: string; bar: string }> = {
+  strong: { label: "Strong", cls: "text-green-400", bar: "bg-green-500" },
+  proficient: { label: "Proficient", cls: "text-amber-400", bar: "bg-amber-500" },
+  developing: { label: "Developing", cls: "text-sky-400", bar: "bg-sky-500" },
+  weak: { label: "Weak", cls: "text-red-400", bar: "bg-red-500" },
+};
+
 function ReadinessRing({ value }: { value: number }) {
   const r = 52;
   const circ = 2 * Math.PI * r;
@@ -107,6 +114,9 @@ export default function DashboardPage() {
     calibration?: { score: number; direction: string; avgConfidence: number; sampleSize: number } | null;
     signals?: Array<{ label: string; score: number; detail: string }>;
     strengths?: string[]; focusAreas?: string[];
+    conceptMastery?: Array<{ conceptId: number; title: string; courseId: number; courseTitle?: string | null; mastery: number; confidence: number; importance: number; attempts: number; band: string }>;
+    readinessByCourse?: Array<{ courseId: number; courseTitle?: string | null; readiness: number | null; conceptCount: number }>;
+    prerequisiteRepairs?: Array<{ concept: string; prerequisite: string }>;
     dataPointsCollected?: number; nextInsightAt?: number;
   } | undefined;
 
@@ -202,6 +212,45 @@ export default function DashboardPage() {
         <StatCard icon={Flame} label="Day Streak" value={stats?.currentStreak ?? 0} sub={`${stats?.weeklyXp ?? 0} XP this week`} color="bg-orange-500" />
         <StatCard icon={Zap} label="Total XP" value={(stats?.totalXp ?? 0).toLocaleString()} sub="lifetime earned" />
       </div>
+
+      {/* Concept Mastery */}
+      {model?.conceptMastery && model.conceptMastery.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" /> Concept Mastery
+              </h2>
+              <Link href="/profile" className="text-sm text-primary hover:underline">All concepts →</Link>
+            </div>
+            <div className="grid md:grid-cols-2 gap-x-8 gap-y-3">
+              {model.conceptMastery.slice(0, 6).map((c) => {
+                const meta = BAND_META[c.band] ?? BAND_META.developing;
+                return (
+                  <div key={c.conceptId}>
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="text-sm text-foreground truncate pr-2">{c.title}</span>
+                      <span className={`text-xs shrink-0 ${meta.cls}`}>{c.mastery}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${meta.bar}`} style={{ width: `${c.mastery}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {model.readinessByCourse && model.readinessByCourse.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-border flex flex-wrap gap-2">
+                {model.readinessByCourse.map((c) => (
+                  <Badge key={c.courseId} variant="outline" className="text-xs text-muted-foreground">
+                    {c.courseTitle ?? "Course"}: {c.readiness}% ready
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-4">

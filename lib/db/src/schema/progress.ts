@@ -1,4 +1,5 @@
-import { pgTable, serial, text, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, jsonb, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { coursesTable } from "./courses";
@@ -15,7 +16,9 @@ export const courseProgressTable = pgTable("course_progress", {
   hintsUsed: integer("hints_used").notNull().default(0),
   startedAt: timestamp("started_at").defaultNow(),
   completedAt: timestamp("completed_at"),
-});
+}, (t) => ({
+  userCourseUniq: uniqueIndex("course_progress_user_course_uniq").on(t.userId, t.courseId),
+}));
 
 export const activityLogTable = pgTable("activity_log", {
   id: serial("id").primaryKey(),
@@ -38,8 +41,17 @@ export const answerEventsTable = pgTable("answer_events", {
   stepId: integer("step_id"),
   isCorrect: boolean("is_correct").notNull(),
   confidence: integer("confidence").notNull(),
+  // Durable, DB-enforced marker of the learner's first graded attempt at a step.
+  // Mastery is updated only from these; a partial unique index guarantees at most
+  // one per (user, step) so concurrent submissions can never double-count.
+  isFirstAttempt: boolean("is_first_attempt").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => ({
+  firstAttemptUniq: uniqueIndex("answer_events_first_attempt_uniq")
+    .on(t.userId, t.stepId)
+    .where(sql`${t.isFirstAttempt}`),
+  userStepIdx: index("answer_events_user_step_idx").on(t.userId, t.stepId),
+}));
 
 export const insertCourseProgressSchema = createInsertSchema(courseProgressTable).omit({ id: true });
 export type InsertCourseProgress = z.infer<typeof insertCourseProgressSchema>;

@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   notesTable, coursesTable, courseProgressTable,
-  activityLogTable, learningProfilesTable, answerEventsTable
+  activityLogTable, learningProfilesTable, answerEventsTable,
+  conceptsTable, masteryRecordsTable, conceptEdgesTable,
 } from "@workspace/db";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "./auth";
@@ -94,6 +95,103 @@ router.get("/dashboard/learner-model", requireAuth, async (req: AuthRequest, res
     const totalHints = allProgress.reduce((sum, p) => sum + p.hintsUsed, 0);
     const answered = totalCorrect + totalIncorrect;
     const dataPointsCollected = answered + totalHints;
+
+    // ─── Concept-level mastery rollup ───────────────────────────────────────
+    // Per-concept Beta-binomial mastery, gated by evidence (min(1, firstAttempts/5)),
+    // rolled up into a readiness score weighted by concept importance. This turns
+    // "you scored 70%" into "you've mastered X but not Y".
+    const userCourses = await db.select().from(coursesTable).where(eq(coursesTable.userId, userId));
+    const courseTitleById = new Map(userCourses.map((c) => [c.id, c.title] as const));
+
+    const masteryRows = await db
+      .select({
+        conceptId: masteryRecordsTable.conceptId,
+        courseId: masteryRecordsTable.courseId,
+        mastery: masteryRecordsTable.mastery,
+        confidence: masteryRecordsTable.confidence,
+        firstAttempts: masteryRecordsTable.firstAttempts,
+        title: conceptsTable.title,
+        importance: conceptsTable.importance,
+      })
+      .from(masteryRecordsTable)
+      .innerJoin(conceptsTable, eq(masteryRecordsTable.conceptId, conceptsTable.id))
+      .where(eq(masteryRecordsTable.userId, userId));
+
+    const bandOf = (m: number) =>
+      m >= 0.8 ? "strong" : m >= 0.6 ? "proficient" : m >= 0.4 ? "developing" : "weak";
+
+    const conceptMastery = masteryRows
+      .map((r) => ({
+        conceptId: r.conceptId,
+        title: r.title,
+        courseId: r.courseId,
+        courseTitle: courseTitleById.get(r.courseId) ?? null,
+        mastery: Math.round((r.mastery ?? 0) * 100),
+        confidence: Math.round((r.confidence ?? 0) * 100),
+        importance: r.importance ?? 1,
+        attempts: r.firstAttempts ?? 0,
+        band: bandOf(r.mastery ?? 0),
+      }))
+      .sort((a, b) => a.mastery - b.mastery);
+
+    const rollup = (rows: typeof masteryRows): number | null => {
+      let num = 0;
+      let den = 0;
+      for (const r of rows) {
+        const gate = Math.min(1, (r.firstAttempts ?? 0) / 5);
+        const wgt = (r.importance ?? 1) * gate;
+        num += wgt * (r.mastery ?? 0);
+        den += wgt;
+      }
+      return den > 0 ? Math.round((100 * num) / den) : null;
+    };
+
+    // Gate the aggregate readiness on DISTINCT graded first attempts — not the sum of
+    // per-concept counters, which would multiply-count a question tagged to several
+    // concepts. The partial unique index guarantees at most one first-attempt row per
+    // (user, step), so this count is exactly the number of unique questions answered
+    // first-time.
+    const [firstAttemptAgg] = await db
+      .select({ cnt: sql<number>`count(*)::int` })
+      .from(answerEventsTable)
+      .where(and(eq(answerEventsTable.userId, userId), eq(answerEventsTable.isFirstAttempt, true)));
+    const totalFirstAttempts = Number(firstAttemptAgg?.cnt ?? 0);
+    const conceptReadiness = totalFirstAttempts >= 5 ? rollup(masteryRows) : null;
+
+    const byCourse = new Map<number, typeof masteryRows>();
+    for (const r of masteryRows) {
+      const arr = byCourse.get(r.courseId) ?? [];
+      arr.push(r);
+      byCourse.set(r.courseId, arr);
+    }
+    const readinessByCourse = [...byCourse.entries()]
+      .map(([cid, rows]) => ({
+        courseId: cid,
+        courseTitle: courseTitleById.get(cid) ?? null,
+        readiness: rollup(rows),
+        conceptCount: rows.length,
+      }))
+      .filter((c) => c.readiness !== null);
+
+    // Prerequisite repair: a weak concept whose prerequisite is also weak should be
+    // fixed at the prerequisite first.
+    const masteryByConcept = new Map(masteryRows.map((r) => [r.conceptId, r] as const));
+    const edges = await db
+      .select({
+        pre: conceptEdgesTable.prerequisiteConceptId,
+        dep: conceptEdgesTable.dependentConceptId,
+      })
+      .from(conceptEdgesTable)
+      .innerJoin(conceptsTable, eq(conceptEdgesTable.prerequisiteConceptId, conceptsTable.id))
+      .where(eq(conceptsTable.userId, userId));
+    const prerequisiteRepairs: { concept: string; prerequisite: string }[] = [];
+    for (const e of edges) {
+      const dep = masteryByConcept.get(e.dep);
+      const pre = masteryByConcept.get(e.pre);
+      if (dep && pre && (dep.mastery ?? 0) < 0.6 && (pre.mastery ?? 0) < 0.7) {
+        prerequisiteRepairs.push({ concept: dep.title, prerequisite: pre.title });
+      }
+    }
 
     const MIN_GRADED = 5;
     const strengths: string[] = [];
@@ -206,6 +304,30 @@ router.get("/dashboard/learner-model", requireAuth, async (req: AuthRequest, res
       }
     }
 
+    // Prefer the concept-level rollup for the headline readiness once enough
+    // first-attempt evidence exists; otherwise keep the aggregate estimate above.
+    if (conceptReadiness !== null) {
+      examReadiness = conceptReadiness;
+      masteryLevel =
+        conceptReadiness >= 80 ? "strong" : conceptReadiness >= 60 ? "proficient" : "developing";
+      confidence = Math.max(confidence, Math.min(0.95, 0.4 + totalFirstAttempts * 0.03));
+      await db
+        .update(learningProfilesTable)
+        .set({ examReadinessScore: examReadiness, masteryLevel, readinessConfidence: confidence, updatedAt: new Date() })
+        .where(eq(learningProfilesTable.userId, userId))
+        .catch(() => {});
+    }
+
+    for (const rep of prerequisiteRepairs.slice(0, 2)) {
+      focusAreas.unshift(`Repair the prerequisite "${rep.prerequisite}" before tackling "${rep.concept}"`);
+    }
+    for (const wc of conceptMastery.filter((c) => c.band === "weak").slice(0, 3)) {
+      focusAreas.push(`Strengthen "${wc.title}" — mastery ${wc.mastery}%`);
+    }
+    for (const sc of conceptMastery.filter((c) => c.band === "strong").slice(0, 2)) {
+      strengths.push(`Solid on "${sc.title}" — mastery ${sc.mastery}%`);
+    }
+
     const nextInsightAt = Math.max(0, MIN_GRADED - answered);
 
     res.json({
@@ -216,8 +338,11 @@ router.get("/dashboard/learner-model", requireAuth, async (req: AuthRequest, res
       accuracy: accuracyPct,
       selfReliance: selfReliancePct,
       signals,
-      strengths,
-      focusAreas,
+      strengths: [...new Set(strengths)],
+      focusAreas: [...new Set(focusAreas)],
+      conceptMastery,
+      readinessByCourse,
+      prerequisiteRepairs,
       dataPointsCollected,
       nextInsightAt,
     });

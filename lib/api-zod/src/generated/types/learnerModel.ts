@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Calibration } from './calibration';
+import type { ConceptMastery } from './conceptMastery';
+import type { CourseReadiness } from './courseReadiness';
 import type { LearnerSignal } from './learnerSignal';
+import type { PrerequisiteRepair } from './prerequisiteRepair';
 
 /**
  * Evidence-based mastery & exam-readiness model inferred from observed behavior
@@ -33,6 +36,12 @@ export interface LearnerModel {
   signals: LearnerSignal[];
   strengths: string[];
   focusAreas: string[];
+  /** Per-concept mastery derived from first-attempt performance */
+  conceptMastery: ConceptMastery[];
+  /** Concept-rollup readiness per course */
+  readinessByCourse: CourseReadiness[];
+  /** Weak concepts whose prerequisite is also weak — fix the prerequisite first */
+  prerequisiteRepairs: PrerequisiteRepair[];
   dataPointsCollected: number;
   /** Graded interactions remaining until the model unlocks */
   nextInsightAt: number;

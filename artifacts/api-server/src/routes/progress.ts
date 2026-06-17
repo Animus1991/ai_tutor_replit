@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { courseProgressTable, activityLogTable, learningProfilesTable, coursesTable, lessonStepsTable, answerEventsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import {
+  courseProgressTable, activityLogTable, learningProfilesTable, coursesTable,
+  lessonStepsTable, answerEventsTable, lessonStepConceptsTable, masteryRecordsTable, mistakesTable,
+} from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "./auth";
 
 const router = Router();
@@ -112,20 +115,120 @@ router.post("/courses/:courseId/progress", requireAuth, async (req: AuthRequest,
       // and each wrong retry correctly lowers accuracy).
       const isCorrect = correct;
       const earned = xpEarned;
+
+      // Difficulty weight scales how much each first attempt moves mastery:
+      // harder material is stronger evidence of (in)competence.
+      const diffWeightMap: Record<string, number> = {
+        beginner: 0.8, easy: 0.8, intermediate: 1.0, medium: 1.0,
+        advanced: 1.2, hard: 1.2, expert: 1.2,
+      };
+      const diffWeight = diffWeightMap[(course.difficulty || "intermediate").toLowerCase()] ?? 1.0;
+
       await db.transaction(async (tx) => {
+        // Serialize concurrent submissions for this (user, course) on the progress
+        // row, so first-attempt detection and the accuracy aggregate can't race.
+        await tx
+          .select({ id: courseProgressTable.id })
+          .from(courseProgressTable)
+          .where(eq(courseProgressTable.id, progress.id))
+          .for("update");
+
+        // Atomic counter increments — never write back stale in-memory values, or
+        // concurrent submissions could clobber each other's accuracy aggregate.
         await tx.update(courseProgressTable).set({
-          correctAnswers: progress.correctAnswers + (isCorrect ? 1 : 0),
-          incorrectAnswers: progress.incorrectAnswers + (isCorrect ? 0 : 1),
-          totalXp: progress.totalXp + earned,
+          correctAnswers: sql`${courseProgressTable.correctAnswers} + ${isCorrect ? 1 : 0}`,
+          incorrectAnswers: sql`${courseProgressTable.incorrectAnswers} + ${isCorrect ? 0 : 1}`,
+          totalXp: sql`${courseProgressTable.totalXp} + ${earned}`,
         }).where(eq(courseProgressTable.id, progress.id));
 
-        await tx.insert(answerEventsTable).values({
+        // First attempt per (user, step)? Determined BEFORE inserting this event so
+        // mastery counts FIRST attempts only — retries (which the lesson player
+        // allows) can never inflate it, while answer_events still records every
+        // attempt for honest accuracy. The is_first_attempt column carries a partial
+        // unique index on (user, step) as a durable DB-level backstop.
+        const priorEvents = await tx
+          .select({ id: answerEventsTable.id })
+          .from(answerEventsTable)
+          .where(and(
+            eq(answerEventsTable.userId, req.userId!),
+            eq(answerEventsTable.stepId, Number(stepId)),
+          ));
+        const isFirstAttempt = priorEvents.length === 0;
+
+        const [event] = await tx.insert(answerEventsTable).values({
           userId: req.userId!,
           courseId,
           stepId: Number(stepId),
           isCorrect,
           confidence: conf,
-        });
+          isFirstAttempt,
+        }).returning();
+
+        const stepConcepts = await tx
+          .select({ conceptId: lessonStepConceptsTable.conceptId, weight: lessonStepConceptsTable.weight })
+          .from(lessonStepConceptsTable)
+          .where(eq(lessonStepConceptsTable.stepId, Number(stepId)));
+
+        if (isFirstAttempt && stepConcepts.length > 0) {
+          // Beta-binomial evidence accumulation per concept. Evidence for a step is
+          // split across the concepts it assesses so a multi-concept question is not
+          // double-counted.
+          const numConcepts = stepConcepts.length;
+          for (const sc of stepConcepts) {
+            const w = (diffWeight * (sc.weight ?? 1)) / numConcepts;
+            const correctEv = isCorrect ? w : 0;
+            const incorrectEv = isCorrect ? 0 : w;
+
+            const [existing] = await tx
+              .select()
+              .from(masteryRecordsTable)
+              .where(and(
+                eq(masteryRecordsTable.userId, req.userId!),
+                eq(masteryRecordsTable.conceptId, sc.conceptId),
+              ));
+
+            const alpha = (existing?.alpha ?? 2) + correctEv;
+            const beta = (existing?.beta ?? 2) + incorrectEv;
+            const firstAttempts = (existing?.firstAttempts ?? 0) + 1;
+            const mastery = alpha / (alpha + beta);
+            const masteryConfidence = Math.min(1, firstAttempts / 5);
+            const correctEvidence = (existing?.correctEvidence ?? 0) + correctEv;
+            const incorrectEvidence = (existing?.incorrectEvidence ?? 0) + incorrectEv;
+
+            if (existing) {
+              await tx.update(masteryRecordsTable).set({
+                alpha, beta, firstAttempts, correctEvidence, incorrectEvidence,
+                mastery, confidence: masteryConfidence, updatedAt: new Date(),
+              }).where(eq(masteryRecordsTable.id, existing.id));
+            } else {
+              await tx.insert(masteryRecordsTable).values({
+                userId: req.userId!, courseId, conceptId: sc.conceptId,
+                alpha, beta, firstAttempts, correctEvidence, incorrectEvidence,
+                mastery, confidence: masteryConfidence,
+              });
+            }
+          }
+        }
+
+        // Mistakes feed the "retry your mistakes" queue: open one on a wrong first
+        // attempt, and resolve any open ones on the step when later answered correctly.
+        if (isCorrect) {
+          await tx.update(mistakesTable).set({ status: "resolved", resolvedAt: new Date() })
+            .where(and(
+              eq(mistakesTable.userId, req.userId!),
+              eq(mistakesTable.stepId, Number(stepId)),
+              eq(mistakesTable.status, "open"),
+            ));
+        } else if (isFirstAttempt) {
+          await tx.insert(mistakesTable).values({
+            userId: req.userId!,
+            courseId,
+            stepId: Number(stepId),
+            answerEventId: event?.id ?? null,
+            conceptId: stepConcepts[0]?.conceptId ?? null,
+            status: "open",
+          });
+        }
       });
 
       if (!correct && (progress.incorrectAnswers + 1) % 3 === 0) {

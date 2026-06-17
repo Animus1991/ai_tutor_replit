@@ -255,6 +255,25 @@ paths:
                 items:
                   $ref: "#/components/schemas/LessonStep"
 
+  /courses/{courseId}/concepts:
+    get:
+      operationId: listCourseConcepts
+      tags: [courses]
+      summary: Concept graph for a course with the current user's mastery
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Concepts and prerequisite edges with per-user mastery
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseConcepts"
+
   /courses/{courseId}/steps/{stepId}:
     get:
       operationId: getCourseStep
@@ -1105,6 +1124,21 @@ components:
           type: array
           items:
             type: string
+        conceptMastery:
+          type: array
+          description: Per-concept mastery derived from first-attempt performance
+          items:
+            $ref: "#/components/schemas/ConceptMastery"
+        readinessByCourse:
+          type: array
+          description: Concept-rollup readiness per course
+          items:
+            $ref: "#/components/schemas/CourseReadiness"
+        prerequisiteRepairs:
+          type: array
+          description: Weak concepts whose prerequisite is also weak — fix the prerequisite first
+          items:
+            $ref: "#/components/schemas/PrerequisiteRepair"
         dataPointsCollected:
           type: integer
         nextInsightAt:
@@ -1117,8 +1151,134 @@ components:
         - signals
         - strengths
         - focusAreas
+        - conceptMastery
+        - readinessByCourse
+        - prerequisiteRepairs
         - dataPointsCollected
         - nextInsightAt
+
+    # ─── CONCEPTS & MASTERY ──────────────────────────────────────────────────
+    Concept:
+      type: object
+      properties:
+        id:
+          type: integer
+        courseId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        importance:
+          type: number
+          description: 1 (peripheral) to 3 (core/exam-critical)
+        mastery:
+          type: ["integer", "null"]
+          description: 0-100 mastery for the current user, null if no evidence yet
+        confidence:
+          type: ["integer", "null"]
+          description: 0-100 evidence-volume confidence in the mastery estimate
+        band:
+          type: ["string", "null"]
+          description: weak | developing | proficient | strong
+        attempts:
+          type: integer
+          description: First-attempt graded interactions on this concept
+      required:
+        - id
+        - courseId
+        - title
+        - importance
+        - attempts
+
+    ConceptEdge:
+      type: object
+      description: Prerequisite relationship (prerequisite must precede dependent)
+      properties:
+        prerequisiteConceptId:
+          type: integer
+        dependentConceptId:
+          type: integer
+      required:
+        - prerequisiteConceptId
+        - dependentConceptId
+
+    CourseConcepts:
+      type: object
+      properties:
+        concepts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Concept"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConceptEdge"
+      required:
+        - concepts
+        - edges
+
+    ConceptMastery:
+      type: object
+      properties:
+        conceptId:
+          type: integer
+        title:
+          type: string
+        courseId:
+          type: integer
+        courseTitle:
+          type: ["string", "null"]
+        mastery:
+          type: integer
+          description: 0-100
+        confidence:
+          type: integer
+          description: 0-100 evidence-volume confidence
+        importance:
+          type: number
+        attempts:
+          type: integer
+        band:
+          type: string
+          description: weak | developing | proficient | strong
+      required:
+        - conceptId
+        - title
+        - courseId
+        - mastery
+        - confidence
+        - importance
+        - attempts
+        - band
+
+    CourseReadiness:
+      type: object
+      properties:
+        courseId:
+          type: integer
+        courseTitle:
+          type: ["string", "null"]
+        readiness:
+          type: ["integer", "null"]
+          description: 0-100 concept-rollup readiness for the course
+        conceptCount:
+          type: integer
+      required:
+        - courseId
+        - readiness
+        - conceptCount
+
+    PrerequisiteRepair:
+      type: object
+      properties:
+        concept:
+          type: string
+        prerequisite:
+          type: string
+      required:
+        - concept
+        - prerequisite
 
     # ─── OPENAI ────────────────────────────────────────────────────────────────
     OpenaiConversation:

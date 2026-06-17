@@ -23,6 +23,7 @@ import type {
   ActivityItem,
   ApiError,
   Course,
+  CourseConcepts,
   CourseInput,
   CourseProgress,
   CourseRegenerateInput,
@@ -934,6 +935,83 @@ export function useListCourseSteps<TData = Awaited<ReturnType<typeof listCourseS
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListCourseStepsQueryOptions(courseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListCourseConceptsUrl = (courseId: number,) => {
+
+
+
+
+  return `/api/courses/${courseId}/concepts`
+}
+
+/**
+ * @summary Concept graph for a course with the current user's mastery
+ */
+export const listCourseConcepts = async (courseId: number, options?: RequestInit): Promise<CourseConcepts> => {
+
+  return customFetch<CourseConcepts>(getListCourseConceptsUrl(courseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCourseConceptsQueryKey = (courseId: number,) => {
+    return [
+    `/api/courses/${courseId}/concepts`
+    ] as const;
+    }
+
+
+export const getListCourseConceptsQueryOptions = <TData = Awaited<ReturnType<typeof listCourseConcepts>>, TError = ErrorType<unknown>>(courseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCourseConcepts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCourseConceptsQueryKey(courseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCourseConcepts>>> = ({ signal }) => listCourseConcepts(courseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(courseId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCourseConcepts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCourseConceptsQueryResult = NonNullable<Awaited<ReturnType<typeof listCourseConcepts>>>
+export type ListCourseConceptsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Concept graph for a course with the current user's mastery
+ */
+
+export function useListCourseConcepts<TData = Awaited<ReturnType<typeof listCourseConcepts>>, TError = ErrorType<unknown>>(
+ courseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCourseConcepts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCourseConceptsQueryOptions(courseId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

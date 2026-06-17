@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { coursesTable, lessonStepsTable, notesTable } from "@workspace/db";
+import {
+  coursesTable, lessonStepsTable, notesTable,
+  conceptsTable, conceptEdgesTable, lessonStepConceptsTable, masteryRecordsTable,
+} from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth, type AuthRequest } from "./auth";
@@ -139,11 +142,22 @@ Generate a complete, structured interactive lesson from the user's notes. The le
 6. Adapt complexity to ${course.difficulty} level
 7. Use the Socratic method: sometimes ask the learner to think before revealing the answer
 
+Also model the KNOWLEDGE GRAPH of the material:
+- Extract 5-12 distinct CONCEPTS — atomic, individually testable ideas the material teaches (not chapter titles). Give each a short name, a one-sentence description, and an importance from 1 (peripheral) to 3 (core/exam-critical).
+- List prerequisite EDGES among those concepts: which concept must be understood before another can be (prerequisite -> dependent). Only include genuine dependencies.
+- Every question/code_exercise step MUST be tagged with the concept name(s) it assesses, using EXACT names from the concepts list. Content/introduction/summary steps may also be tagged but it is optional.
+
 Return a JSON object with this exact structure:
 {
   "title": "Course title",
   "description": "2-sentence description",
   "estimatedMinutes": <number>,
+  "concepts": [
+    { "name": "Concept name", "description": "One sentence on what it is", "importance": 1-3 }
+  ],
+  "edges": [
+    { "prerequisite": "Concept name", "dependent": "Concept name" }
+  ],
   "steps": [
     {
       "position": 1,
@@ -152,6 +166,7 @@ Return a JSON object with this exact structure:
       "content": "Markdown-formatted content text. Rich, educational, detailed.",
       "xpReward": <10-50>,
       "isRequired": true,
+      "concepts": ["Exact concept name(s) from the concepts list this step covers/tests"],
       "questionData": null or {
         "type": "multiple_choice|true_false|open_ended",
         "question": "The question text",
@@ -190,11 +205,14 @@ ${course.additionalInstructions ? `\n\nAdditional instructions from the learner:
       title?: string;
       description?: string;
       estimatedMinutes?: number;
+      concepts?: Array<{ name?: string; description?: string; importance?: number }>;
+      edges?: Array<{ prerequisite?: string; dependent?: string }>;
       steps?: Array<{
         position: number;
         stepType?: string;
         title?: string;
         content?: string;
+        concepts?: string[];
         questionData?: unknown;
         codeData?: unknown;
         xpReward?: number;
@@ -204,8 +222,52 @@ ${course.additionalInstructions ? `\n\nAdditional instructions from the learner:
 
     const steps = parsed.steps || [];
 
-    for (const step of steps) {
+    // ─── Persist the concept graph ────────────────────────────────────────────
+    // Idempotent: wipe any prior concepts for this course (cascades to edges,
+    // step tags, mastery + review state) so (re)generation starts clean.
+    await db.delete(conceptsTable).where(eq(conceptsTable.courseId, id));
+
+    // Case-insensitive name -> id lookup so step tags / edge endpoints resolve
+    // even when the model varies capitalisation or whitespace.
+    const conceptIdByName = new Map<string, number>();
+    for (const c of parsed.concepts || []) {
+      const name = (c.name || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (conceptIdByName.has(key)) continue;
+      const importance = Math.min(3, Math.max(1, Number(c.importance) || 1));
+      const [row] = await db
+        .insert(conceptsTable)
+        .values({
+          courseId: id,
+          userId: req.userId!,
+          title: name,
+          description: c.description?.trim() || null,
+          importance,
+        })
+        .returning();
+      if (row) conceptIdByName.set(key, row.id);
+    }
+
+    // Prerequisite edges (skip self-loops, unknown endpoints, and duplicates).
+    const seenEdges = new Set<string>();
+    for (const e of parsed.edges || []) {
+      const pre = conceptIdByName.get((e.prerequisite || "").trim().toLowerCase());
+      const dep = conceptIdByName.get((e.dependent || "").trim().toLowerCase());
+      if (!pre || !dep || pre === dep) continue;
+      const ek = `${pre}->${dep}`;
+      if (seenEdges.has(ek)) continue;
+      seenEdges.add(ek);
       await db
+        .insert(conceptEdgesTable)
+        .values({ courseId: id, prerequisiteConceptId: pre, dependentConceptId: dep })
+        .onConflictDoNothing();
+    }
+
+    res.write(`data: ${JSON.stringify({ status: "concepts_extracted", count: conceptIdByName.size })}\n\n`);
+
+    for (const step of steps) {
+      const [inserted] = await db
         .insert(lessonStepsTable)
         .values({
           courseId: id,
@@ -219,6 +281,21 @@ ${course.additionalInstructions ? `\n\nAdditional instructions from the learner:
           isRequired: step.isRequired !== false ? 1 : 0,
         })
         .returning();
+
+      // Tag the step with the concept(s) it assesses, so first attempts can
+      // update per-concept mastery.
+      if (inserted && Array.isArray(step.concepts)) {
+        const tagged = new Set<number>();
+        for (const cname of step.concepts) {
+          const cid = conceptIdByName.get((cname || "").trim().toLowerCase());
+          if (!cid || tagged.has(cid)) continue;
+          tagged.add(cid);
+          await db
+            .insert(lessonStepConceptsTable)
+            .values({ stepId: inserted.id, conceptId: cid })
+            .onConflictDoNothing();
+        }
+      }
       res.write(`data: ${JSON.stringify({ status: "step_added", stepPosition: step.position })}\n\n`);
     }
 
@@ -289,6 +366,71 @@ router.get("/courses/:courseId/steps", requireAuth, async (req: AuthRequest, res
   } catch (err) {
     req.log.error({ err }, "Failed to list steps");
     res.status(500).json({ error: "Failed to list steps" });
+  }
+});
+
+router.get("/courses/:courseId/concepts", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const courseId = parseInt(req.params["courseId"] as string);
+    const [course] = await db.select().from(coursesTable).where(eq(coursesTable.id, courseId));
+    if (!course || course.userId !== req.userId!) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+
+    const rows = await db
+      .select({
+        id: conceptsTable.id,
+        courseId: conceptsTable.courseId,
+        title: conceptsTable.title,
+        description: conceptsTable.description,
+        importance: conceptsTable.importance,
+        mastery: masteryRecordsTable.mastery,
+        confidence: masteryRecordsTable.confidence,
+        firstAttempts: masteryRecordsTable.firstAttempts,
+      })
+      .from(conceptsTable)
+      .leftJoin(
+        masteryRecordsTable,
+        and(
+          eq(masteryRecordsTable.conceptId, conceptsTable.id),
+          eq(masteryRecordsTable.userId, req.userId!),
+        ),
+      )
+      .where(eq(conceptsTable.courseId, courseId));
+
+    const bandOf = (m: number) =>
+      m >= 0.8 ? "strong" : m >= 0.6 ? "proficient" : m >= 0.4 ? "developing" : "weak";
+
+    const concepts = rows
+      .map((r) => {
+        const hasEvidence = (r.firstAttempts ?? 0) > 0;
+        return {
+          id: r.id,
+          courseId: r.courseId,
+          title: r.title,
+          description: r.description,
+          importance: r.importance ?? 1,
+          mastery: hasEvidence ? Math.round((r.mastery ?? 0) * 100) : null,
+          confidence: hasEvidence ? Math.round((r.confidence ?? 0) * 100) : null,
+          band: hasEvidence ? bandOf(r.mastery ?? 0) : null,
+          attempts: r.firstAttempts ?? 0,
+        };
+      })
+      .sort((a, b) => (a.mastery ?? 101) - (b.mastery ?? 101));
+
+    const edges = await db
+      .select({
+        prerequisiteConceptId: conceptEdgesTable.prerequisiteConceptId,
+        dependentConceptId: conceptEdgesTable.dependentConceptId,
+      })
+      .from(conceptEdgesTable)
+      .where(eq(conceptEdgesTable.courseId, courseId));
+
+    res.json({ concepts, edges });
+  } catch (err) {
+    req.log.error({ err }, "Failed to list concepts");
+    res.status(500).json({ error: "Failed to list concepts" });
   }
 });
 

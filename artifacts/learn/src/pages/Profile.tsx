@@ -38,6 +38,13 @@ const CAL_META: Record<string, { label: string; cls: string; tip: string }> = {
   },
 };
 
+const BAND_META: Record<string, { label: string; cls: string; bar: string }> = {
+  strong: { label: "Strong", cls: "text-green-400", bar: "bg-green-500" },
+  proficient: { label: "Proficient", cls: "text-amber-400", bar: "bg-amber-500" },
+  developing: { label: "Developing", cls: "text-sky-400", bar: "bg-sky-500" },
+  weak: { label: "Weak", cls: "text-red-400", bar: "bg-red-500" },
+};
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -57,6 +64,9 @@ export default function ProfilePage() {
     calibration?: { score: number; direction: string; avgConfidence: number; sampleSize: number } | null;
     signals?: Array<{ label: string; score: number; detail: string }>;
     strengths?: string[]; focusAreas?: string[];
+    conceptMastery?: Array<{ conceptId: number; title: string; courseId: number; courseTitle?: string | null; mastery: number; confidence: number; importance: number; attempts: number; band: string }>;
+    readinessByCourse?: Array<{ courseId: number; courseTitle?: string | null; readiness: number | null; conceptCount: number }>;
+    prerequisiteRepairs?: Array<{ concept: string; prerequisite: string }>;
     dataPointsCollected?: number; nextInsightAt?: number;
   } | undefined;
 
@@ -225,6 +235,60 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {m?.conceptMastery && m.conceptMastery.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" /> Concept Mastery
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {m.readinessByCourse && m.readinessByCourse.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {m.readinessByCourse.map((c) => (
+                  <Badge key={c.courseId} variant="outline" className="text-xs">
+                    {c.courseTitle ?? "Course"} · {c.readiness}% ready · {c.conceptCount} concepts
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="space-y-3">
+              {m.conceptMastery.map((c) => {
+                const meta = BAND_META[c.band] ?? BAND_META.developing;
+                return (
+                  <div key={c.conceptId}>
+                    <div className="flex justify-between items-baseline mb-1 gap-2">
+                      <span className="text-sm text-foreground">
+                        {c.title}
+                        {c.courseTitle && <span className="text-xs text-muted-foreground ml-2">{c.courseTitle}</span>}
+                      </span>
+                      <span className={`text-xs shrink-0 ${meta.cls}`}>{meta.label} · {c.mastery}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${meta.bar}`} style={{ width: `${c.mastery}%` }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{c.confidence}% confidence · {c.attempts} first-attempt{c.attempts === 1 ? "" : "s"}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {m.prerequisiteRepairs && m.prerequisiteRepairs.length > 0 && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-4">
+                <p className="text-sm font-medium text-amber-400 mb-2">Fix prerequisites first</p>
+                {m.prerequisiteRepairs.map((r, i) => (
+                  <p key={i} className="text-xs text-muted-foreground mb-1">
+                    Strengthen <span className="text-foreground">{r.prerequisite}</span> before <span className="text-foreground">{r.concept}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground/70 pt-1 border-t border-border">
+              Mastery is Bayesian — it counts only your <span className="text-muted-foreground">first attempt</span> on each question, weighted by difficulty and concept importance. Retries never inflate it.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
