@@ -6,7 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, ArrowRight, Bot, ChevronRight, Code2,
+  ArrowLeft, ArrowRight, Bot, ChevronRight, Code2, Gauge,
   HelpCircle, Info, Loader2, MessageSquare, Send, Sparkles, X, Zap
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -204,8 +204,15 @@ function TutorChat({ courseId, stepId, onClose }: { courseId: number; stepId: nu
   );
 }
 
+const CONFIDENCE_OPTIONS = [
+  { value: 25, label: "Just guessing" },
+  { value: 60, label: "Fairly sure" },
+  { value: 90, label: "Certain" },
+];
+
 function QuestionStep({ step, courseId, onAdvance }: { step: LessonStep; courseId: number; onAdvance: (xp: number) => void }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<{ correct: boolean; explanation: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -213,14 +220,14 @@ function QuestionStep({ step, courseId, onAdvance }: { step: LessonStep; courseI
   const qd = step.questionData!;
 
   async function handleSubmit() {
-    if (!selected || submitted) return;
+    if (!selected || confidence === null || submitted) return;
     setIsSubmitting(true);
     try {
       const r = await fetch(`/api/courses/${courseId}/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ stepId: step.id, action: "submit_answer", answer: selected }),
+        body: JSON.stringify({ stepId: step.id, action: "submit_answer", answer: selected, confidence }),
       });
       const data = await r.json() as { correct: boolean; explanation: string; xpEarned: number };
       setResult({ correct: data.correct, explanation: data.explanation });
@@ -252,7 +259,7 @@ function QuestionStep({ step, courseId, onAdvance }: { step: LessonStep; courseI
               <button
                 key={i}
                 disabled={submitted}
-                onClick={() => !submitted && setSelected(choice)}
+                onClick={() => { if (!submitted) { setSelected(choice); setConfidence(null); } }}
                 className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-all flex items-center gap-3 ${
                   isCorrect ? "border-green-500 bg-green-500/10 text-green-300" :
                   isWrong ? "border-red-500 bg-red-500/10 text-red-300" :
@@ -278,15 +285,50 @@ function QuestionStep({ step, courseId, onAdvance }: { step: LessonStep; courseI
       )}
 
       {!submitted ? (
-        <Button onClick={handleSubmit} disabled={!selected || isSubmitting} className="w-full">
-          {isSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking...</> : "Submit Answer"}
-        </Button>
+        <>
+          {selected && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Gauge className="h-3.5 w-3.5" />How sure are you?
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {CONFIDENCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setConfidence(opt.value)}
+                    className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                      confidence === opt.value
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border bg-white/[0.02] hover:border-white/20 text-muted-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <Button onClick={handleSubmit} disabled={!selected || confidence === null || isSubmitting} className="w-full">
+            {isSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking...</> : "Submit Answer"}
+          </Button>
+        </>
       ) : (
         <div className={`p-4 rounded-xl border ${result?.correct ? "border-green-500/30 bg-green-500/5" : "border-red-500/30 bg-red-500/5"}`}>
           <p className={`font-semibold text-sm mb-1 ${result?.correct ? "text-green-400" : "text-red-400"}`}>
             {result?.correct ? "Correct!" : "Not quite — keep going"}
           </p>
           {result?.explanation && <p className="text-sm text-muted-foreground">{result.explanation}</p>}
+          {confidence !== null && confidence >= 90 && !result?.correct && (
+            <p className="text-xs text-amber-400/90 mt-2 flex items-center gap-1.5">
+              <Gauge className="h-3.5 w-3.5 shrink-0" />You felt certain here — worth a careful review.
+            </p>
+          )}
+          {confidence !== null && confidence <= 25 && result?.correct && (
+            <p className="text-xs text-sky-400/90 mt-2 flex items-center gap-1.5">
+              <Gauge className="h-3.5 w-3.5 shrink-0" />Right despite low confidence — lock it in so it's not luck.
+            </p>
+          )}
         </div>
       )}
     </div>

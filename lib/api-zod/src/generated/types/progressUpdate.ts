@@ -12,6 +12,13 @@ export interface ProgressUpdate {
   action: ProgressUpdateAction;
   /** @nullable */
   answer?: string | null;
+  /**
+     * Self-rated confidence 0-100 captured at answer time (for submit_answer)
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  confidence?: number | null;
   /** @nullable */
   codeSubmission?: string | null;
 }

@@ -29,7 +29,7 @@ An AI-powered adaptive learning platform. Users upload study notes and the AI ge
 ## Where things live
 
 - `lib/api-spec/openapi.yaml` — source-of-truth API contract
-- `lib/db/src/schema/` — Drizzle ORM schema (notes, courses, progress, profiles, conversations, messages)
+- `lib/db/src/schema/` — Drizzle ORM schema (notes, courses, progress, profiles, conversations, messages, answer_events)
 - `lib/api-client-react/src/generated/` — generated React Query hooks (run codegen to update)
 - `lib/api-zod/src/generated/` — generated Zod schemas
 - `artifacts/api-server/src/routes/` — all Express API route handlers
@@ -52,6 +52,7 @@ An AI-powered adaptive learning platform. Users upload study notes and the AI ge
 - Dashboard: Exam-Readiness score (hero ring), mastery level + evidence signals, with XP/streak/recent courses as secondary stats
 - Profile: adaptive preferences (quiz frequency, pace, difficulty, course type) + Mastery & Exam-Readiness panel
 - Exam readiness & mastery auto-computed after 5+ graded questions answered (hints are a signal, not unlock evidence); readiness = round(100 * (0.7*accuracy + 0.3*self-reliance)), mastery bands strong≥0.8 / proficient≥0.6 / developing
+- Confidence calibration: each graded answer captures a pre-submit self-rating ("Just guessing"=25 / "Fairly sure"=60 / "Certain"=90), logged per-answer in `answer_events`. After 5+ rated answers, the learner model reports gap = avgConfidence − accuracy → score = round((1−min(1,|gap|))*100) and direction overconfident(gap>0.1) / calibrated / underconfident(gap<−0.1). Surfaced on Dashboard hero + Profile. `answer_events` is the honest per-answer foundation for future signals (latency, retention).
 
 ## User preferences
 

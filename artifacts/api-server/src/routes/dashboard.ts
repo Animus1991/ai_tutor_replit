@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   notesTable, coursesTable, courseProgressTable,
-  activityLogTable, learningProfilesTable
+  activityLogTable, learningProfilesTable, answerEventsTable
 } from "@workspace/db";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "./auth";
@@ -173,12 +173,46 @@ router.get("/dashboard/learner-model", requireAuth, async (req: AuthRequest, res
       focusAreas.push("Complete a few graded questions to unlock your exam-readiness score");
     }
 
+    // ─── Confidence calibration ─────────────────────────────────────────────
+    // How well the learner's self-rated confidence matches their real accuracy.
+    // Computed from the honest per-answer event log, independent of the readiness gate.
+    const MIN_CALIBRATION = 5;
+    const events = await db
+      .select()
+      .from(answerEventsTable)
+      .where(eq(answerEventsTable.userId, userId));
+
+    let calibration:
+      | { score: number; direction: string; avgConfidence: number; sampleSize: number }
+      | null = null;
+
+    if (events.length >= MIN_CALIBRATION) {
+      const n = events.length;
+      const avgConfidence = events.reduce((s, e) => s + e.confidence, 0) / n / 100;
+      const calibAccuracy = events.reduce((s, e) => s + (e.isCorrect ? 1 : 0), 0) / n;
+      const gap = avgConfidence - calibAccuracy; // >0 overconfident, <0 underconfident
+      const score = Math.round((1 - Math.min(1, Math.abs(gap))) * 100);
+      const direction = gap > 0.1 ? "overconfident" : gap < -0.1 ? "underconfident" : "calibrated";
+      calibration = { score, direction, avgConfidence: Math.round(avgConfidence * 100), sampleSize: n };
+
+      if (answered >= MIN_GRADED) {
+        if (direction === "overconfident") {
+          focusAreas.push("Slow down on questions you feel sure about — that's where overconfidence hides mistakes");
+        } else if (direction === "underconfident") {
+          strengths.push("You underrate yourself — you often get right what you doubt");
+        } else {
+          strengths.push("Well-calibrated confidence — you reliably know what you know");
+        }
+      }
+    }
+
     const nextInsightAt = Math.max(0, MIN_GRADED - answered);
 
     res.json({
       examReadiness,
       masteryLevel,
       confidence,
+      calibration,
       accuracy: accuracyPct,
       selfReliance: selfReliancePct,
       signals,

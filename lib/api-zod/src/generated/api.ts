@@ -292,10 +292,16 @@ export const UpdateCourseProgressParams = zod.object({
   "courseId": zod.coerce.number()
 })
 
+export const updateCourseProgressBodyConfidenceMin = 0;
+export const updateCourseProgressBodyConfidenceMax = 100;
+
+
+
 export const UpdateCourseProgressBody = zod.object({
   "stepId": zod.number(),
   "action": zod.enum(['advance', 'submit_answer', 'use_hint', 'complete']),
   "answer": zod.string().nullish(),
+  "confidence": zod.number().min(updateCourseProgressBodyConfidenceMin).max(updateCourseProgressBodyConfidenceMax).nullish().describe('Self-rated confidence 0-100 captured at answer time (for submit_answer)'),
   "codeSubmission": zod.string().nullish()
 })
 
@@ -428,6 +434,12 @@ export const GetLearnerModelResponse = zod.object({
   "examReadiness": zod.number().nullish().describe('0-100 composite exam-readiness score, null until enough data'),
   "masteryLevel": zod.string().nullish().describe('Coarse mastery band — developing | proficient | strong'),
   "confidence": zod.number().describe('0-1 confidence in the model given data volume'),
+  "calibration": zod.union([zod.object({
+  "score": zod.number().describe('0-100, 100 = perfectly calibrated (confidence matches accuracy)'),
+  "direction": zod.enum(['overconfident', 'calibrated', 'underconfident']),
+  "avgConfidence": zod.number().describe('Mean self-rated confidence, 0-100'),
+  "sampleSize": zod.number().describe('Number of confidence-rated answers used')
+}).describe('How well self-rated confidence matches actual correctness'),zod.null()]).optional().describe('Confidence calibration, null until enough confidence-rated answers'),
   "accuracy": zod.number().describe('Observed quiz accuracy, 0-100'),
   "selfReliance": zod.number().describe('0-100, inverse of hint dependency (exam has no hints)'),
   "signals": zod.array(zod.object({

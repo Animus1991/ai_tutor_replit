@@ -15,6 +15,12 @@ const MASTERY_META: Record<string, { label: string; cls: string }> = {
   developing: { label: "Developing", cls: "border-sky-500/30 text-sky-400" },
 };
 
+const CAL_META: Record<string, { label: string; cls: string }> = {
+  overconfident: { label: "Overconfident", cls: "text-amber-400" },
+  underconfident: { label: "Underconfident", cls: "text-sky-400" },
+  calibrated: { label: "Well-calibrated", cls: "text-green-400" },
+};
+
 function ReadinessRing({ value }: { value: number }) {
   const r = 52;
   const circ = 2 * Math.PI * r;
@@ -98,6 +104,7 @@ export default function DashboardPage() {
   const model = learnerModel as {
     examReadiness?: number | null; masteryLevel?: string | null; confidence?: number;
     accuracy?: number; selfReliance?: number;
+    calibration?: { score: number; direction: string; avgConfidence: number; sampleSize: number } | null;
     signals?: Array<{ label: string; score: number; detail: string }>;
     strengths?: string[]; focusAreas?: string[];
     dataPointsCollected?: number; nextInsightAt?: number;
@@ -145,6 +152,14 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground max-w-sm">
                     Built from your real performance — accuracy, hint reliance and practice volume.
                   </p>
+                  {model!.calibration && (
+                    <p className="text-xs mt-2">
+                      <span className="text-muted-foreground">Confidence calibration: </span>
+                      <span className={CAL_META[model!.calibration.direction]?.cls ?? "text-muted-foreground"}>
+                        {CAL_META[model!.calibration.direction]?.label ?? model!.calibration.direction} · {model!.calibration.score}/100
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex-1 space-y-3 lg:border-l lg:border-border lg:pl-6">

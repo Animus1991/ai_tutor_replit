@@ -862,6 +862,11 @@ components:
           enum: [advance, submit_answer, use_hint, complete]
         answer:
           type: ["string", "null"]
+        confidence:
+          type: ["integer", "null"]
+          minimum: 0
+          maximum: 100
+          description: Self-rated confidence 0-100 captured at answer time (for submit_answer)
         codeSubmission:
           type: ["string", "null"]
       required:
@@ -1042,6 +1047,28 @@ components:
         - score
         - detail
 
+    Calibration:
+      type: object
+      description: How well self-rated confidence matches actual correctness
+      properties:
+        score:
+          type: integer
+          description: 0-100, 100 = perfectly calibrated (confidence matches accuracy)
+        direction:
+          type: string
+          enum: [overconfident, calibrated, underconfident]
+        avgConfidence:
+          type: integer
+          description: Mean self-rated confidence, 0-100
+        sampleSize:
+          type: integer
+          description: Number of confidence-rated answers used
+      required:
+        - score
+        - direction
+        - avgConfidence
+        - sampleSize
+
     LearnerModel:
       type: object
       description: Evidence-based mastery & exam-readiness model inferred from observed behavior
@@ -1055,6 +1082,11 @@ components:
         confidence:
           type: number
           description: 0-1 confidence in the model given data volume
+        calibration:
+          oneOf:
+            - $ref: "#/components/schemas/Calibration"
+            - type: "null"
+          description: Confidence calibration, null until enough confidence-rated answers
         accuracy:
           type: integer
           description: Observed quiz accuracy, 0-100

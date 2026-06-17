@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useGetProfile, useUpdateProfile, useGetLearnerModel, getGetProfileQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Brain, Flame, Star, Target, Zap } from "lucide-react";
+import { Brain, Flame, Gauge, Star, Target, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,24 @@ const MASTERY_META: Record<string, { label: string; cls: string }> = {
   developing: { label: "Developing", cls: "border-sky-500/30 text-sky-400" },
 };
 
+const CAL_META: Record<string, { label: string; cls: string; tip: string }> = {
+  overconfident: {
+    label: "Overconfident",
+    cls: "border-amber-500/30 text-amber-400",
+    tip: "You tend to feel surer than your results show — double-check answers you're certain about.",
+  },
+  underconfident: {
+    label: "Underconfident",
+    cls: "border-sky-500/30 text-sky-400",
+    tip: "You know more than you think — trust your reasoning, you often get right what you doubt.",
+  },
+  calibrated: {
+    label: "Well-calibrated",
+    cls: "border-green-500/30 text-green-400",
+    tip: "Your confidence closely matches your real performance — a sign of genuine mastery.",
+  },
+};
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -36,6 +54,7 @@ export default function ProfilePage() {
   const m = model as {
     examReadiness?: number | null; masteryLevel?: string | null; confidence?: number;
     accuracy?: number; selfReliance?: number;
+    calibration?: { score: number; direction: string; avgConfidence: number; sampleSize: number } | null;
     signals?: Array<{ label: string; score: number; detail: string }>;
     strengths?: string[]; focusAreas?: string[];
     dataPointsCollected?: number; nextInsightAt?: number;
@@ -137,6 +156,23 @@ export default function ProfilePage() {
                   style={{ width: `${m.examReadiness}%` }}
                 />
               </div>
+
+              {m.calibration && (
+                <div className="rounded-lg border border-border bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                      <Gauge className="h-4 w-4 text-primary" /> Confidence calibration
+                    </span>
+                    <Badge variant="outline" className={CAL_META[m.calibration.direction]?.cls}>
+                      {CAL_META[m.calibration.direction]?.label ?? m.calibration.direction} · {m.calibration.score}/100
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {CAL_META[m.calibration.direction]?.tip}{" "}
+                    <span className="opacity-70">(avg confidence {m.calibration.avgConfidence}%, {m.calibration.sampleSize} answers)</span>
+                  </p>
+                </div>
+              )}
 
               {m.signals && m.signals.length > 0 && (
                 <div className="space-y-3 pt-1">

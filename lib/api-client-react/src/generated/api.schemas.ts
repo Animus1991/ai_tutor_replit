@@ -285,6 +285,13 @@ export interface ProgressUpdate {
   action: ProgressUpdateAction;
   /** @nullable */
   answer?: string | null;
+  /**
+     * Self-rated confidence 0-100 captured at answer time (for submit_answer)
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  confidence?: number | null;
   /** @nullable */
   codeSubmission?: string | null;
 }
@@ -469,6 +476,28 @@ export interface LearnerSignal {
   detail: string;
 }
 
+export type CalibrationDirection = typeof CalibrationDirection[keyof typeof CalibrationDirection];
+
+
+export const CalibrationDirection = {
+  overconfident: 'overconfident',
+  calibrated: 'calibrated',
+  underconfident: 'underconfident',
+} as const;
+
+/**
+ * How well self-rated confidence matches actual correctness
+ */
+export interface Calibration {
+  /** 0-100, 100 = perfectly calibrated (confidence matches accuracy) */
+  score: number;
+  direction: CalibrationDirection;
+  /** Mean self-rated confidence, 0-100 */
+  avgConfidence: number;
+  /** Number of confidence-rated answers used */
+  sampleSize: number;
+}
+
 /**
  * Evidence-based mastery & exam-readiness model inferred from observed behavior
  */
@@ -485,6 +514,8 @@ export interface LearnerModel {
   masteryLevel?: string | null;
   /** 0-1 confidence in the model given data volume */
   confidence: number;
+  /** Confidence calibration, null until enough confidence-rated answers */
+  calibration?: Calibration | null;
   /** Observed quiz accuracy, 0-100 */
   accuracy: number;
   /** 0-100, inverse of hint dependency (exam has no hints) */

@@ -1,2 +1,3 @@
-- [drizzle-kit push TTY](drizzle-kit-push-tty.md) — column renames need an interactive TTY; in dev, apply the DDL directly via SQL instead.
-- [Learner-model gating](learner-model-gating.md) — exam-readiness/mastery must unlock on graded ANSWERS only; hints are a signal, never unlock evidence.
+# Memory Index
+
+- [Graded-answer recording & retry behavior](learner-model-grading.md) — submit_answer records every attempt (no first-attempt dedup) because question steps have no Next button; retries lower accuracy so they can't inflate readiness.
