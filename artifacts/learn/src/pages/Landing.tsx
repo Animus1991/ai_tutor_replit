@@ -17,6 +17,9 @@ export default function LandingPage() {
           <Link href="/sign-in" className="text-sm font-medium hover:text-white transition-colors">
             Sign In
           </Link>
+          <Button variant="outline" asChild className="border-slate-600 text-slate-200 hover:bg-slate-800">
+            <Link href="/demo">Try Demo</Link>
+          </Button>
           <Button asChild>
             <Link href="/sign-up">Get Started</Link>
           </Button>
@@ -49,6 +52,11 @@ export default function LandingPage() {
               <Button size="lg" className="h-14 px-8 text-base" asChild>
                 <Link href="/sign-up">
                   Start Learning Free <ChevronRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" className="h-14 px-8 text-base border-slate-600 text-slate-200 hover:bg-slate-800 hover:text-white" asChild>
+                <Link href="/demo">
+                  Try Demo →
                 </Link>
               </Button>
             </div>

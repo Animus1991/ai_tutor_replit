@@ -15,6 +15,7 @@ import CoursesPage from "@/pages/Courses";
 import CreateCoursePage from "@/pages/CreateCourse";
 import LessonPlayerPage from "@/pages/LessonPlayer";
 import ProfilePage from "@/pages/Profile";
+import DemoPage from "@/pages/Demo";
 import NotFoundPage from "@/pages/not-found";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -170,6 +171,7 @@ function ClerkProviderWithRoutes() {
         <ClerkQueryClientCacheInvalidator />
         <Switch>
           <Route path="/" component={HomeRedirect} />
+          <Route path="/demo" component={DemoPage} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           
