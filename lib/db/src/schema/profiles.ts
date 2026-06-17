@@ -1,0 +1,29 @@
+import { pgTable, serial, text, integer, timestamp, real } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const learningProfilesTable = pgTable("learning_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  displayName: text("display_name"),
+  totalXp: integer("total_xp").notNull().default(0),
+  currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  completedCourses: integer("completed_courses").notNull().default(0),
+  quizFrequencyPreference: text("quiz_frequency_preference").notNull().default("adaptive"),
+  learningPacePreference: text("learning_pace_preference").notNull().default("adaptive"),
+  preferredCourseType: text("preferred_course_type").notNull().default("adaptive"),
+  preferredDifficulty: text("preferred_difficulty").notNull().default("adaptive"),
+  showExplanationsAfterCorrect: integer("show_explanations_after_correct").notNull().default(1),
+  enableHints: integer("enable_hints").notNull().default(1),
+  aiInferredStyle: text("ai_inferred_style"),
+  aiStyleConfidence: real("ai_style_confidence"),
+  aiStyleNotes: text("ai_style_notes"),
+  lastActiveAt: timestamp("last_active_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertLearningProfileSchema = createInsertSchema(learningProfilesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLearningProfile = z.infer<typeof insertLearningProfileSchema>;
+export type LearningProfile = typeof learningProfilesTable.$inferSelect;

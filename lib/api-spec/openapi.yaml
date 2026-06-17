@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: LearnAI - AI-Powered Adaptive Learning Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: notes
+    description: User uploaded notes/study materials
+  - name: courses
+    description: AI-generated courses from notes
+  - name: progress
+    description: Lesson progress tracking
+  - name: profile
+    description: User learning profile and adaptive settings
+  - name: dashboard
+    description: Dashboard stats and summaries
+  - name: openai
+    description: OpenAI AI chat and lesson generation operations
 paths:
   /healthz:
     get:
@@ -24,6 +36,553 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── NOTES ───────────────────────────────────────────────────────────────────
+  /notes:
+    get:
+      operationId: listNotes
+      tags: [notes]
+      summary: List all uploaded notes
+      responses:
+        "200":
+          description: List of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+    post:
+      operationId: createNote
+      tags: [notes]
+      summary: Upload a note / study material
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteInput"
+      responses:
+        "201":
+          description: Created note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+
+  /notes/{id}:
+    get:
+      operationId: getNote
+      tags: [notes]
+      summary: Get a specific note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteNote
+      tags: [notes]
+      summary: Delete a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  # ─── COURSES ─────────────────────────────────────────────────────────────────
+  /courses:
+    get:
+      operationId: listCourses
+      tags: [courses]
+      summary: List all AI-generated courses
+      responses:
+        "200":
+          description: List of courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Course"
+    post:
+      operationId: createCourse
+      tags: [courses]
+      summary: Generate an AI course from a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseInput"
+      responses:
+        "201":
+          description: Created course (steps generation in progress)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+
+  /courses/{id}:
+    get:
+      operationId: getCourse
+      tags: [courses]
+      summary: Get a course with all lesson steps
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Course with steps
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseWithSteps"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteCourse
+      tags: [courses]
+      summary: Delete a course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /courses/{id}/generate-steps:
+    post:
+      operationId: generateCourseSteps
+      tags: [courses]
+      summary: Trigger AI generation of lesson steps for a course (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: SSE stream of generation progress and completed steps
+          content:
+            text/event-stream: {}
+
+  /courses/{id}/regenerate:
+    post:
+      operationId: regenerateCourse
+      tags: [courses]
+      summary: Regenerate a course with updated settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseRegenerateInput"
+      responses:
+        "200":
+          description: Regeneration started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+
+  # ─── STEPS ────────────────────────────────────────────────────────────────────
+  /courses/{courseId}/steps:
+    get:
+      operationId: listCourseSteps
+      tags: [courses]
+      summary: List all steps in a course
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Steps list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LessonStep"
+
+  /courses/{courseId}/steps/{stepId}:
+    get:
+      operationId: getCourseStep
+      tags: [courses]
+      summary: Get a specific lesson step
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stepId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lesson step
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LessonStep"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /courses/{courseId}/steps/{stepId}/hint:
+    post:
+      operationId: getStepHint
+      tags: [courses]
+      summary: Get an AI hint for the current step
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stepId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: SSE stream of hint text
+          content:
+            text/event-stream: {}
+
+  /courses/{courseId}/steps/{stepId}/explain:
+    post:
+      operationId: explainStep
+      tags: [courses]
+      summary: AI explanation/elaboration of the current concept (SSE stream)
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stepId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: SSE stream of explanation text
+          content:
+            text/event-stream: {}
+
+  # ─── PROGRESS ────────────────────────────────────────────────────────────────
+  /courses/{courseId}/progress:
+    get:
+      operationId: getCourseProgress
+      tags: [progress]
+      summary: Get user progress for a course
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Progress record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseProgress"
+    post:
+      operationId: updateCourseProgress
+      tags: [progress]
+      summary: Update progress (advance step, submit answer)
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressUpdate"
+      responses:
+        "200":
+          description: Updated progress with feedback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressFeedback"
+
+  # ─── PROFILE ─────────────────────────────────────────────────────────────────
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get user learning profile and adaptive settings
+      responses:
+        "200":
+          description: User learning profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningProfile"
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update learning preferences and settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningProfile"
+
+  # ─── DASHBOARD ───────────────────────────────────────────────────────────────
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent learning activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/learning-style:
+    get:
+      operationId: getLearningStyleInsights
+      tags: [dashboard]
+      summary: AI-inferred learning style insights for the user
+      responses:
+        "200":
+          description: Learning style insights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningStyleInsights"
+
+  # ─── OPENAI ──────────────────────────────────────────────────────────────────
+  /openai/conversations:
+    get:
+      operationId: listOpenaiConversations
+      tags: [openai]
+      summary: List all AI tutor conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiConversation"
+    post:
+      operationId: createOpenaiConversation
+      tags: [openai]
+      summary: Create a new AI tutor conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversation"
+
+  /openai/conversations/{id}:
+    get:
+      operationId: getOpenaiConversation
+      tags: [openai]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+    delete:
+      operationId: deleteOpenaiConversation
+      tags: [openai]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+
+  /openai/conversations/{id}/messages:
+    get:
+      operationId: listOpenaiMessages
+      tags: [openai]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiMessage"
+    post:
+      operationId: sendOpenaiMessage
+      tags: [openai]
+      summary: Send a text message and receive a streaming text response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiMessageInput"
+      responses:
+        "200":
+          description: SSE stream of assistant text chunks
+          content:
+            text/event-stream: {}
+
+  /openai/generate-image:
+    post:
+      operationId: generateOpenaiImage
+      tags: [openai]
+      summary: Generate an image from a text prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiImageInput"
+      responses:
+        "200":
+          description: Generated image data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiImageOutput"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +593,566 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # ─── NOTE ──────────────────────────────────────────────────────────────────
+    Note:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        subject:
+          type: ["string", "null"]
+        wordCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - content
+        - wordCount
+        - createdAt
+        - updatedAt
+
+    NoteInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+          minLength: 10
+        subject:
+          type: string
+      required:
+        - title
+        - content
+
+    # ─── COURSE ────────────────────────────────────────────────────────────────
+    Course:
+      type: object
+      properties:
+        id:
+          type: integer
+        noteId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        subject:
+          type: ["string", "null"]
+        courseType:
+          type: string
+          enum: [theoretical, practical, mixed]
+        status:
+          type: string
+          enum: [generating, ready, error]
+        totalSteps:
+          type: integer
+        estimatedMinutes:
+          type: integer
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        quizFrequency:
+          type: string
+          enum: [low, medium, high]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - noteId
+        - title
+        - description
+        - courseType
+        - status
+        - totalSteps
+        - estimatedMinutes
+        - difficulty
+        - quizFrequency
+        - createdAt
+
+    CourseWithSteps:
+      type: object
+      properties:
+        id:
+          type: integer
+        noteId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        subject:
+          type: ["string", "null"]
+        courseType:
+          type: string
+          enum: [theoretical, practical, mixed]
+        status:
+          type: string
+          enum: [generating, ready, error]
+        totalSteps:
+          type: integer
+        estimatedMinutes:
+          type: integer
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        quizFrequency:
+          type: string
+          enum: [low, medium, high]
+        createdAt:
+          type: string
+          format: date-time
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/LessonStep"
+      required:
+        - id
+        - noteId
+        - title
+        - description
+        - courseType
+        - status
+        - totalSteps
+        - estimatedMinutes
+        - difficulty
+        - quizFrequency
+        - createdAt
+        - steps
+
+    CourseInput:
+      type: object
+      properties:
+        noteId:
+          type: integer
+        title:
+          type: string
+        courseType:
+          type: string
+          enum: [theoretical, practical, mixed]
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        quizFrequency:
+          type: string
+          enum: [low, medium, high]
+        additionalInstructions:
+          type: string
+      required:
+        - noteId
+
+    CourseRegenerateInput:
+      type: object
+      properties:
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        quizFrequency:
+          type: string
+          enum: [low, medium, high]
+        courseType:
+          type: string
+          enum: [theoretical, practical, mixed]
+        additionalInstructions:
+          type: string
+
+    # ─── LESSON STEP ───────────────────────────────────────────────────────────
+    LessonStep:
+      type: object
+      properties:
+        id:
+          type: integer
+        courseId:
+          type: integer
+        position:
+          type: integer
+        stepType:
+          type: string
+          enum: [introduction, content, question, code_exercise, summary, checkpoint]
+        title:
+          type: ["string", "null"]
+        content:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        questionData:
+          description: JSON object with question type, choices, correct answer, explanation
+          type: ["object", "null"]
+        codeData:
+          description: JSON object with language, starter code, solution, tests, instructions
+          type: ["object", "null"]
+        xpReward:
+          type: integer
+        isRequired:
+          type: boolean
+      required:
+        - id
+        - courseId
+        - position
+        - stepType
+        - content
+        - xpReward
+        - isRequired
+
+    # ─── PROGRESS ──────────────────────────────────────────────────────────────
+    CourseProgress:
+      type: object
+      properties:
+        courseId:
+          type: integer
+        currentStepPosition:
+          type: integer
+        completedStepIds:
+          type: array
+          items:
+            type: integer
+        totalXp:
+          type: integer
+        correctAnswers:
+          type: integer
+        incorrectAnswers:
+          type: integer
+        hintsUsed:
+          type: integer
+        startedAt:
+          type: ["string", "null"]
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        percentComplete:
+          type: integer
+      required:
+        - courseId
+        - currentStepPosition
+        - completedStepIds
+        - totalXp
+        - correctAnswers
+        - incorrectAnswers
+        - hintsUsed
+        - percentComplete
+
+    ProgressUpdate:
+      type: object
+      properties:
+        stepId:
+          type: integer
+        action:
+          type: string
+          enum: [advance, submit_answer, use_hint, complete]
+        answer:
+          type: ["string", "null"]
+        codeSubmission:
+          type: ["string", "null"]
+      required:
+        - stepId
+        - action
+
+    ProgressFeedback:
+      type: object
+      properties:
+        correct:
+          type: ["boolean", "null"]
+        explanation:
+          type: ["string", "null"]
+        xpEarned:
+          type: integer
+        progress:
+          $ref: "#/components/schemas/CourseProgress"
+        adaptationNote:
+          type: ["string", "null"]
+      required:
+        - xpEarned
+        - progress
+
+    # ─── LEARNING PROFILE ──────────────────────────────────────────────────────
+    LearningProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        totalXp:
+          type: integer
+        currentStreak:
+          type: integer
+        longestStreak:
+          type: integer
+        completedCourses:
+          type: integer
+        quizFrequencyPreference:
+          type: string
+          enum: [low, medium, high, adaptive]
+        learningPacePreference:
+          type: string
+          enum: [slow, normal, fast, adaptive]
+        preferredCourseType:
+          type: string
+          enum: [theoretical, practical, mixed, adaptive]
+        preferredDifficulty:
+          type: string
+          enum: [beginner, intermediate, advanced, adaptive]
+        showExplanationsAfterCorrect:
+          type: boolean
+        enableHints:
+          type: boolean
+        aiInferredStyle:
+          type: ["string", "null"]
+          description: AI-inferred learning style label e.g. "visual-analytical"
+        aiStyleConfidence:
+          type: ["number", "null"]
+          description: Confidence 0-1 of the inferred style
+        aiStyleNotes:
+          type: ["string", "null"]
+        lastActiveAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - userId
+        - totalXp
+        - currentStreak
+        - longestStreak
+        - completedCourses
+        - quizFrequencyPreference
+        - learningPacePreference
+        - preferredCourseType
+        - preferredDifficulty
+        - showExplanationsAfterCorrect
+        - enableHints
+
+    LearningProfileUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+        quizFrequencyPreference:
+          type: string
+          enum: [low, medium, high, adaptive]
+        learningPacePreference:
+          type: string
+          enum: [slow, normal, fast, adaptive]
+        preferredCourseType:
+          type: string
+          enum: [theoretical, practical, mixed, adaptive]
+        preferredDifficulty:
+          type: string
+          enum: [beginner, intermediate, advanced, adaptive]
+        showExplanationsAfterCorrect:
+          type: boolean
+        enableHints:
+          type: boolean
+
+    # ─── DASHBOARD ─────────────────────────────────────────────────────────────
+    DashboardStats:
+      type: object
+      properties:
+        totalNotes:
+          type: integer
+        totalCourses:
+          type: integer
+        completedCourses:
+          type: integer
+        inProgressCourses:
+          type: integer
+        totalXp:
+          type: integer
+        currentStreak:
+          type: integer
+        weeklyXp:
+          type: integer
+        averageScore:
+          type: number
+        recentCourses:
+          type: array
+          items:
+            $ref: "#/components/schemas/Course"
+        aiStyleLabel:
+          type: ["string", "null"]
+      required:
+        - totalNotes
+        - totalCourses
+        - completedCourses
+        - inProgressCourses
+        - totalXp
+        - currentStreak
+        - weeklyXp
+        - averageScore
+        - recentCourses
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        activityType:
+          type: string
+          enum: [course_started, course_completed, note_uploaded, step_completed, quiz_passed, streak_milestone, xp_milestone]
+        description:
+          type: string
+        xpEarned:
+          type: integer
+        courseId:
+          type: ["integer", "null"]
+        courseTitle:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - activityType
+        - description
+        - xpEarned
+        - createdAt
+
+    LearningStyleInsights:
+      type: object
+      properties:
+        inferredStyle:
+          type: ["string", "null"]
+        confidence:
+          type: number
+        strengths:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        dataPointsCollected:
+          type: integer
+        nextInsightAt:
+          type: integer
+          description: Number of interactions until next style update
+      required:
+        - confidence
+        - strengths
+        - recommendations
+        - dataPointsCollected
+        - nextInsightAt
+
+    # ─── OPENAI ────────────────────────────────────────────────────────────────
+    OpenaiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+
+    OpenaiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+
+    OpenaiConversationInput:
+      type: object
+      properties:
+        title:
+          type: string
+        courseId:
+          type: integer
+        stepId:
+          type: integer
+      required:
+        - title
+
+    OpenaiMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    OpenaiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenaiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+
+    OpenaiImageInput:
+      type: object
+      properties:
+        prompt:
+          type: string
+        size:
+          type: string
+          enum: ["1024x1024", "1536x1024", "1024x1536"]
+      required:
+        - prompt
+
+    OpenaiImageOutput:
+      type: object
+      properties:
+        b64_json:
+          type: string
+      required:
+        - b64_json
+
+    OpenaiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
