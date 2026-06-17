@@ -355,17 +355,22 @@ export interface LearningProfile {
   showExplanationsAfterCorrect: boolean;
   enableHints: boolean;
   /**
-     * AI-inferred learning style label e.g. "visual-analytical"
+     * 0-100 composite exam-readiness score, null until enough data
      * @nullable
      */
-  aiInferredStyle?: string | null;
+  examReadinessScore?: number | null;
   /**
-     * Confidence 0-1 of the inferred style
+     * Coarse mastery band — developing | proficient | strong
      * @nullable
      */
-  aiStyleConfidence?: number | null;
+  masteryLevel?: string | null;
+  /**
+     * 0-1 confidence in the readiness estimate
+     * @nullable
+     */
+  readinessConfidence?: number | null;
   /** @nullable */
-  aiStyleNotes?: string | null;
+  learnerModelNotes?: string | null;
   /** @nullable */
   lastActiveAt?: string | null;
 }
@@ -430,8 +435,6 @@ export interface DashboardStats {
   weeklyXp: number;
   averageScore: number;
   recentCourses: Course[];
-  /** @nullable */
-  aiStyleLabel?: string | null;
 }
 
 export type ActivityItemActivityType = typeof ActivityItemActivityType[keyof typeof ActivityItemActivityType];
@@ -459,14 +462,38 @@ export interface ActivityItem {
   createdAt: string;
 }
 
-export interface LearningStyleInsights {
-  /** @nullable */
-  inferredStyle?: string | null;
+export interface LearnerSignal {
+  label: string;
+  /** 0-100 strength of this evidence-based signal */
+  score: number;
+  detail: string;
+}
+
+/**
+ * Evidence-based mastery & exam-readiness model inferred from observed behavior
+ */
+export interface LearnerModel {
+  /**
+     * 0-100 composite exam-readiness score, null until enough data
+     * @nullable
+     */
+  examReadiness?: number | null;
+  /**
+     * Coarse mastery band — developing | proficient | strong
+     * @nullable
+     */
+  masteryLevel?: string | null;
+  /** 0-1 confidence in the model given data volume */
   confidence: number;
+  /** Observed quiz accuracy, 0-100 */
+  accuracy: number;
+  /** 0-100, inverse of hint dependency (exam has no hints) */
+  selfReliance: number;
+  signals: LearnerSignal[];
   strengths: string[];
-  recommendations: string[];
+  focusAreas: string[];
   dataPointsCollected: number;
-  /** Number of interactions until next style update */
+  /** Graded interactions remaining until the model unlocks */
   nextInsightAt: number;
 }
 

@@ -29,9 +29,9 @@ import type {
   CourseWithSteps,
   DashboardStats,
   HealthStatus,
+  LearnerModel,
   LearningProfile,
   LearningProfileUpdate,
-  LearningStyleInsights,
   LessonStep,
   Note,
   NoteInput,
@@ -1623,20 +1623,20 @@ export function useGetRecentActivity<TData = Awaited<ReturnType<typeof getRecent
 
 
 
-export const getGetLearningStyleInsightsUrl = () => {
+export const getGetLearnerModelUrl = () => {
 
 
 
 
-  return `/api/dashboard/learning-style`
+  return `/api/dashboard/learner-model`
 }
 
 /**
- * @summary AI-inferred learning style insights for the user
+ * @summary Evidence-based mastery & exam-readiness model for the user
  */
-export const getLearningStyleInsights = async ( options?: RequestInit): Promise<LearningStyleInsights> => {
+export const getLearnerModel = async ( options?: RequestInit): Promise<LearnerModel> => {
 
-  return customFetch<LearningStyleInsights>(getGetLearningStyleInsightsUrl(),
+  return customFetch<LearnerModel>(getGetLearnerModelUrl(),
   {
     ...options,
     method: 'GET'
@@ -1649,45 +1649,45 @@ export const getLearningStyleInsights = async ( options?: RequestInit): Promise<
 
 
 
-export const getGetLearningStyleInsightsQueryKey = () => {
+export const getGetLearnerModelQueryKey = () => {
     return [
-    `/api/dashboard/learning-style`
+    `/api/dashboard/learner-model`
     ] as const;
     }
 
 
-export const getGetLearningStyleInsightsQueryOptions = <TData = Awaited<ReturnType<typeof getLearningStyleInsights>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningStyleInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetLearnerModelQueryOptions = <TData = Awaited<ReturnType<typeof getLearnerModel>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearnerModel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetLearningStyleInsightsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetLearnerModelQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningStyleInsights>>> = ({ signal }) => getLearningStyleInsights({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearnerModel>>> = ({ signal }) => getLearnerModel({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningStyleInsights>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearnerModel>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type GetLearningStyleInsightsQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningStyleInsights>>>
-export type GetLearningStyleInsightsQueryError = ErrorType<unknown>
+export type GetLearnerModelQueryResult = NonNullable<Awaited<ReturnType<typeof getLearnerModel>>>
+export type GetLearnerModelQueryError = ErrorType<unknown>
 
 
 /**
- * @summary AI-inferred learning style insights for the user
+ * @summary Evidence-based mastery & exam-readiness model for the user
  */
 
-export function useGetLearningStyleInsights<TData = Awaited<ReturnType<typeof getLearningStyleInsights>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningStyleInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetLearnerModel<TData = Awaited<ReturnType<typeof getLearnerModel>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearnerModel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetLearningStyleInsightsQueryOptions(options)
+  const queryOptions = getGetLearnerModelQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

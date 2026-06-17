@@ -1,23 +1,63 @@
 import { Link } from "wouter";
-import { useGetDashboard, useGetRecentActivity, useGetLearningStyleInsights } from "@workspace/api-client-react";
-import { BookOpen, Brain, FileText, Flame, Plus, Star, Zap } from "lucide-react";
+import { useGetDashboard, useGetRecentActivity, useGetLearnerModel } from "@workspace/api-client-react";
+import { BookOpen, Brain, FileText, Flame, Plus, Star, Target, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+
+function barColor(v: number) {
+  return v >= 70 ? "bg-green-500" : v >= 40 ? "bg-amber-500" : "bg-red-500";
+}
+
+const MASTERY_META: Record<string, { label: string; cls: string }> = {
+  strong: { label: "Strong mastery", cls: "border-green-500/30 text-green-400" },
+  proficient: { label: "Proficient", cls: "border-amber-500/30 text-amber-400" },
+  developing: { label: "Developing", cls: "border-sky-500/30 text-sky-400" },
+};
+
+function ReadinessRing({ value }: { value: number }) {
+  const r = 52;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (value / 100) * circ;
+  const stroke = value >= 70 ? "#22c55e" : value >= 40 ? "#f59e0b" : "#ef4444";
+  return (
+    <div className="relative h-32 w-32 shrink-0">
+      <svg className="h-32 w-32 -rotate-90" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r={r} fill="none" strokeWidth="9" className="stroke-white/10" />
+        <circle
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          strokeWidth="9"
+          strokeLinecap="round"
+          stroke={stroke}
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          className="transition-all duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-3xl font-bold text-foreground">{value}</span>
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">% ready</span>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
   icon: React.ElementType; label: string; value: string | number; sub?: string; color?: string;
 }) {
   return (
     <Card className="bg-card border-border">
-      <CardContent className="p-6">
+      <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-muted-foreground mb-1">{label}</p>
-            <p className="text-3xl font-bold text-foreground">{value}</p>
+            <p className="text-2xl font-bold text-foreground">{value}</p>
             {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
           </div>
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${color || "bg-primary/10"}`}>
+          <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${color || "bg-primary/10"}`}>
             <Icon className={`h-5 w-5 ${color ? "text-white" : "text-primary"}`} />
           </div>
         </div>
@@ -29,14 +69,15 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
 export default function DashboardPage() {
   const { data: dashboard, isLoading } = useGetDashboard();
   const { data: activity } = useGetRecentActivity();
-  const { data: styleInsights } = useGetLearningStyleInsights();
+  const { data: learnerModel } = useGetLearnerModel();
 
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-8">
         <div className="h-8 bg-white/5 rounded w-48" />
+        <div className="h-44 bg-white/5 rounded-xl" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-white/5 rounded-xl" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-white/5 rounded-xl" />)}
         </div>
       </div>
     );
@@ -47,24 +88,30 @@ export default function DashboardPage() {
     inProgressCourses?: number; totalXp?: number; currentStreak?: number;
     weeklyXp?: number; averageScore?: number; recentCourses?: Array<{
       id: number; title: string; status: string; difficulty: string; courseType: string; totalSteps: number;
-    }>; aiStyleLabel?: string;
+    }>;
   } | undefined;
 
   const recentActivity = activity as Array<{
     id: number; activityType: string; description: string; xpEarned: number; createdAt: string;
   }> | undefined;
 
-  const insights = styleInsights as {
-    inferredStyle?: string; confidence?: number; strengths?: string[]; recommendations?: string[];
+  const model = learnerModel as {
+    examReadiness?: number | null; masteryLevel?: string | null; confidence?: number;
+    accuracy?: number; selfReliance?: number;
+    signals?: Array<{ label: string; score: number; detail: string }>;
+    strengths?: string[]; focusAreas?: string[];
     dataPointsCollected?: number; nextInsightAt?: number;
   } | undefined;
 
+  const mMeta = MASTERY_META[model?.masteryLevel ?? "developing"] ?? MASTERY_META.developing;
+  const hasModel = model?.examReadiness != null;
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Your learning overview</p>
+          <p className="text-muted-foreground mt-1">How exam-ready you are, at a glance</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" asChild>
@@ -82,11 +129,63 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Exam Readiness hero */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-6">
+          {hasModel ? (
+            <div className="flex flex-col lg:flex-row gap-6 lg:items-center">
+              <div className="flex items-center gap-5 lg:w-1/2">
+                <ReadinessRing value={model!.examReadiness!} />
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Exam Readiness</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className={mMeta.cls}>{mMeta.label}</Badge>
+                    <span className="text-xs text-muted-foreground">{Math.round((model!.confidence ?? 0) * 100)}% confidence</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground max-w-sm">
+                    Built from your real performance — accuracy, hint reliance and practice volume.
+                  </p>
+                </div>
+              </div>
+              <div className="flex-1 space-y-3 lg:border-l lg:border-border lg:pl-6">
+                {model!.signals?.map((s, i) => (
+                  <div key={i}>
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="text-sm text-foreground">{s.label}</span>
+                      <span className="text-xs text-muted-foreground">{s.score}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${barColor(s.score)}`} style={{ width: `${s.score}%` }} />
+                    </div>
+                  </div>
+                ))}
+                <Link href="/profile" className="text-xs text-primary hover:underline inline-block pt-1">
+                  View full breakdown →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Target className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Your Exam Readiness score is warming up</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Answer {model?.nextInsightAt ?? 5} more graded questions and we'll score how exam-ready you are — from real performance, not a personality quiz.
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Secondary stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Zap} label="Total XP" value={(stats?.totalXp ?? 0).toLocaleString()} sub="lifetime earned" />
-        <StatCard icon={Flame} label="Day Streak" value={stats?.currentStreak ?? 0} sub={`${stats?.weeklyXp ?? 0} XP this week`} color="bg-orange-500" />
-        <StatCard icon={BookOpen} label="Courses" value={stats?.completedCourses ?? 0} sub={`${stats?.inProgressCourses ?? 0} in progress`} color="bg-cyan-500/80" />
         <StatCard icon={Star} label="Avg Score" value={`${stats?.averageScore ?? 0}%`} sub="quiz accuracy" color="bg-violet-500/80" />
+        <StatCard icon={BookOpen} label="Courses" value={stats?.completedCourses ?? 0} sub={`${stats?.inProgressCourses ?? 0} in progress`} color="bg-cyan-500/80" />
+        <StatCard icon={Flame} label="Day Streak" value={stats?.currentStreak ?? 0} sub={`${stats?.weeklyXp ?? 0} XP this week`} color="bg-orange-500" />
+        <StatCard icon={Zap} label="Total XP" value={(stats?.totalXp ?? 0).toLocaleString()} sub="lifetime earned" />
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -141,71 +240,30 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Learning Style</h2>
-          <Card className="bg-card border-border">
-            <CardContent className="p-5 space-y-4">
-              {insights?.inferredStyle ? (
-                <>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Inferred Style</p>
-                    <p className="font-semibold text-foreground capitalize">{insights.inferredStyle.replace(/-/g, " ")}</p>
+          <h2 className="text-xl font-semibold">Recent Activity</h2>
+          {recentActivity && recentActivity.length > 0 ? (
+            <div className="space-y-2">
+              {recentActivity.slice(0, 6).map((item) => (
+                <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                  <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Zap className="h-3.5 w-3.5 text-primary" />
                   </div>
-                  <div>
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                      <span>Confidence</span>
-                      <span>{Math.round((insights.confidence ?? 0) * 100)}%</span>
-                    </div>
-                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${Math.round((insights.confidence ?? 0) * 100)}%` }}
-                      />
-                    </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{item.description}</p>
                   </div>
-                  {insights.strengths && insights.strengths.length > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-2">Strengths</p>
-                      {insights.strengths.slice(0, 2).map((s, i) => (
-                        <p key={i} className="text-sm text-foreground flex items-start gap-1.5 mb-1">
-                          <span className="text-primary mt-0.5">›</span> {s}
-                        </p>
-                      ))}
-                    </div>
+                  {item.xpEarned > 0 && (
+                    <span className="text-xs font-medium text-primary shrink-0">+{item.xpEarned} XP</span>
                   )}
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <Brain className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    Complete {insights?.nextInsightAt ?? 5} more lessons to unlock your learning style insights.
-                  </p>
                 </div>
-              )}
-              <Link href="/profile" className="text-xs text-primary hover:underline block">
-                View full insights →
-              </Link>
-            </CardContent>
-          </Card>
-
-          {recentActivity && recentActivity.length > 0 && (
-            <>
-              <h2 className="text-xl font-semibold pt-2">Recent Activity</h2>
-              <div className="space-y-2">
-                {recentActivity.slice(0, 5).map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/5">
-                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <Zap className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">{item.description}</p>
-                    </div>
-                    {item.xpEarned > 0 && (
-                      <span className="text-xs font-medium text-primary shrink-0">+{item.xpEarned} XP</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
+              ))}
+            </div>
+          ) : (
+            <Card className="bg-card border-border border-dashed">
+              <CardContent className="p-8 text-center">
+                <Zap className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No activity yet.</p>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>

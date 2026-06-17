@@ -50,7 +50,7 @@ function UserMenu() {
         <DropdownMenuItem asChild>
           <Link href="/profile" className="w-full flex items-center cursor-pointer">
             <User className="mr-2 h-4 w-4" />
-            <span>Profile & Learning Style</span>
+            <span>Profile & Readiness</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

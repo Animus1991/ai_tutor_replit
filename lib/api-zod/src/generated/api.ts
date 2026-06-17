@@ -335,9 +335,10 @@ export const GetProfileResponse = zod.object({
   "preferredDifficulty": zod.enum(['beginner', 'intermediate', 'advanced', 'adaptive']),
   "showExplanationsAfterCorrect": zod.boolean(),
   "enableHints": zod.boolean(),
-  "aiInferredStyle": zod.string().nullish().describe('AI-inferred learning style label e.g. \"visual-analytical\"'),
-  "aiStyleConfidence": zod.number().nullish().describe('Confidence 0-1 of the inferred style'),
-  "aiStyleNotes": zod.string().nullish(),
+  "examReadinessScore": zod.number().nullish().describe('0-100 composite exam-readiness score, null until enough data'),
+  "masteryLevel": zod.string().nullish().describe('Coarse mastery band — developing | proficient | strong'),
+  "readinessConfidence": zod.number().nullish().describe('0-1 confidence in the readiness estimate'),
+  "learnerModelNotes": zod.string().nullish(),
   "lastActiveAt": zod.coerce.date().nullish()
 })
 
@@ -368,9 +369,10 @@ export const UpdateProfileResponse = zod.object({
   "preferredDifficulty": zod.enum(['beginner', 'intermediate', 'advanced', 'adaptive']),
   "showExplanationsAfterCorrect": zod.boolean(),
   "enableHints": zod.boolean(),
-  "aiInferredStyle": zod.string().nullish().describe('AI-inferred learning style label e.g. \"visual-analytical\"'),
-  "aiStyleConfidence": zod.number().nullish().describe('Confidence 0-1 of the inferred style'),
-  "aiStyleNotes": zod.string().nullish(),
+  "examReadinessScore": zod.number().nullish().describe('0-100 composite exam-readiness score, null until enough data'),
+  "masteryLevel": zod.string().nullish().describe('Coarse mastery band — developing | proficient | strong'),
+  "readinessConfidence": zod.number().nullish().describe('0-1 confidence in the readiness estimate'),
+  "learnerModelNotes": zod.string().nullish(),
   "lastActiveAt": zod.coerce.date().nullish()
 })
 
@@ -400,8 +402,7 @@ export const GetDashboardResponse = zod.object({
   "difficulty": zod.enum(['beginner', 'intermediate', 'advanced']),
   "quizFrequency": zod.enum(['low', 'medium', 'high']),
   "createdAt": zod.coerce.date()
-})),
-  "aiStyleLabel": zod.string().nullish()
+}))
 })
 
 
@@ -421,16 +422,24 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
 
 
 /**
- * @summary AI-inferred learning style insights for the user
+ * @summary Evidence-based mastery & exam-readiness model for the user
  */
-export const GetLearningStyleInsightsResponse = zod.object({
-  "inferredStyle": zod.string().nullish(),
-  "confidence": zod.number(),
+export const GetLearnerModelResponse = zod.object({
+  "examReadiness": zod.number().nullish().describe('0-100 composite exam-readiness score, null until enough data'),
+  "masteryLevel": zod.string().nullish().describe('Coarse mastery band — developing | proficient | strong'),
+  "confidence": zod.number().describe('0-1 confidence in the model given data volume'),
+  "accuracy": zod.number().describe('Observed quiz accuracy, 0-100'),
+  "selfReliance": zod.number().describe('0-100, inverse of hint dependency (exam has no hints)'),
+  "signals": zod.array(zod.object({
+  "label": zod.string(),
+  "score": zod.number().describe('0-100 strength of this evidence-based signal'),
+  "detail": zod.string()
+})),
   "strengths": zod.array(zod.string()),
-  "recommendations": zod.array(zod.string()),
+  "focusAreas": zod.array(zod.string()),
   "dataPointsCollected": zod.number(),
-  "nextInsightAt": zod.number().describe('Number of interactions until next style update')
-})
+  "nextInsightAt": zod.number().describe('Graded interactions remaining until the model unlocks')
+}).describe('Evidence-based mastery & exam-readiness model inferred from observed behavior')
 
 
 /**

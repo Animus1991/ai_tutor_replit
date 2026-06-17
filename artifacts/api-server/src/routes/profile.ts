@@ -36,9 +36,10 @@ router.get("/profile", requireAuth, async (req: AuthRequest, res) => {
       preferredDifficulty: profile.preferredDifficulty,
       showExplanationsAfterCorrect: profile.showExplanationsAfterCorrect === 1,
       enableHints: profile.enableHints === 1,
-      aiInferredStyle: profile.aiInferredStyle,
-      aiStyleConfidence: profile.aiStyleConfidence,
-      aiStyleNotes: profile.aiStyleNotes,
+      examReadinessScore: profile.examReadinessScore,
+      masteryLevel: profile.masteryLevel,
+      readinessConfidence: profile.readinessConfidence,
+      learnerModelNotes: profile.learnerModelNotes,
       lastActiveAt: profile.lastActiveAt,
     });
   } catch (err) {
@@ -84,9 +85,10 @@ router.patch("/profile", requireAuth, async (req: AuthRequest, res) => {
       preferredDifficulty: profile.preferredDifficulty,
       showExplanationsAfterCorrect: profile.showExplanationsAfterCorrect === 1,
       enableHints: profile.enableHints === 1,
-      aiInferredStyle: profile.aiInferredStyle,
-      aiStyleConfidence: profile.aiStyleConfidence,
-      aiStyleNotes: profile.aiStyleNotes,
+      examReadinessScore: profile.examReadinessScore,
+      masteryLevel: profile.masteryLevel,
+      readinessConfidence: profile.readinessConfidence,
+      learnerModelNotes: profile.learnerModelNotes,
       lastActiveAt: profile.lastActiveAt,
     });
   } catch (err) {

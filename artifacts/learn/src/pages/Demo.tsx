@@ -223,16 +223,16 @@ function DemoDashboard({ onGoToLesson }: { onGoToLesson: () => void }) {
           </div>
         </div>
 
-        {/* AI Learning Style */}
+        {/* Exam Readiness */}
         <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-          <h3 className="font-semibold text-foreground flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /> AI Learning Profile</h3>
+          <h3 className="font-semibold text-foreground flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /> Exam Readiness</h3>
           <div className="rounded-lg bg-primary/10 border border-primary/20 p-4 space-y-2">
             <div className="flex items-center gap-2">
               <Star className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-primary text-sm">Visual Learner · High Engagement</span>
+              <span className="font-semibold text-primary text-sm">80% exam-ready · Proficient</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Βασισμένο στη συμπεριφορά σου: χρησιμοποιείς hints σπάνια (78% accuracy χωρίς βοήθεια), προτιμάς quiz-heavy ρυθμό, και μαθαίνεις καλύτερα με visual παραδείγματα.
+              Υπολογισμένο από την πραγματική σου απόδοση: 78% ακρίβεια στα quiz, λύνεις τις περισσότερες ερωτήσεις χωρίς hints, και σταθερός ρυθμός εξάσκησης — δείκτες ότι είσαι σε καλό δρόμο για τις εξετάσεις.
             </p>
           </div>
           <div className="space-y-2">

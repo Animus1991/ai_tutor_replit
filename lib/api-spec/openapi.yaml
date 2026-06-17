@@ -432,18 +432,18 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
-  /dashboard/learning-style:
+  /dashboard/learner-model:
     get:
-      operationId: getLearningStyleInsights
+      operationId: getLearnerModel
       tags: [dashboard]
-      summary: AI-inferred learning style insights for the user
+      summary: Evidence-based mastery & exam-readiness model for the user
       responses:
         "200":
-          description: Learning style insights
+          description: Learner mastery & exam-readiness model
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LearningStyleInsights"
+                $ref: "#/components/schemas/LearnerModel"
 
   # ─── OPENAI ──────────────────────────────────────────────────────────────────
   /openai/conversations:
@@ -917,13 +917,16 @@ components:
           type: boolean
         enableHints:
           type: boolean
-        aiInferredStyle:
+        examReadinessScore:
+          type: ["integer", "null"]
+          description: 0-100 composite exam-readiness score, null until enough data
+        masteryLevel:
           type: ["string", "null"]
-          description: AI-inferred learning style label e.g. "visual-analytical"
-        aiStyleConfidence:
+          description: Coarse mastery band — developing | proficient | strong
+        readinessConfidence:
           type: ["number", "null"]
-          description: Confidence 0-1 of the inferred style
-        aiStyleNotes:
+          description: 0-1 confidence in the readiness estimate
+        learnerModelNotes:
           type: ["string", "null"]
         lastActiveAt:
           type: ["string", "null"]
@@ -987,8 +990,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Course"
-        aiStyleLabel:
-          type: ["string", "null"]
       required:
         - totalNotes
         - totalCourses
@@ -1026,18 +1027,49 @@ components:
         - xpEarned
         - createdAt
 
-    LearningStyleInsights:
+    LearnerSignal:
       type: object
       properties:
-        inferredStyle:
+        label:
+          type: string
+        score:
+          type: integer
+          description: 0-100 strength of this evidence-based signal
+        detail:
+          type: string
+      required:
+        - label
+        - score
+        - detail
+
+    LearnerModel:
+      type: object
+      description: Evidence-based mastery & exam-readiness model inferred from observed behavior
+      properties:
+        examReadiness:
+          type: ["integer", "null"]
+          description: 0-100 composite exam-readiness score, null until enough data
+        masteryLevel:
           type: ["string", "null"]
+          description: Coarse mastery band — developing | proficient | strong
         confidence:
           type: number
+          description: 0-1 confidence in the model given data volume
+        accuracy:
+          type: integer
+          description: Observed quiz accuracy, 0-100
+        selfReliance:
+          type: integer
+          description: 0-100, inverse of hint dependency (exam has no hints)
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearnerSignal"
         strengths:
           type: array
           items:
             type: string
-        recommendations:
+        focusAreas:
           type: array
           items:
             type: string
@@ -1045,11 +1077,14 @@ components:
           type: integer
         nextInsightAt:
           type: integer
-          description: Number of interactions until next style update
+          description: Graded interactions remaining until the model unlocks
       required:
         - confidence
+        - accuracy
+        - selfReliance
+        - signals
         - strengths
-        - recommendations
+        - focusAreas
         - dataPointsCollected
         - nextInsightAt
 

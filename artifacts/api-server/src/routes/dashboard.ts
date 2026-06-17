@@ -57,7 +57,6 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
       weeklyXp,
       averageScore,
       recentCourses,
-      aiStyleLabel: profile.aiInferredStyle,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get dashboard");
@@ -80,7 +79,7 @@ router.get("/dashboard/activity", requireAuth, async (req: AuthRequest, res) => 
   }
 });
 
-router.get("/dashboard/learning-style", requireAuth, async (req: AuthRequest, res) => {
+router.get("/dashboard/learner-model", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const profile = await getOrCreateProfile(userId);
@@ -90,66 +89,107 @@ router.get("/dashboard/learning-style", requireAuth, async (req: AuthRequest, re
       .from(courseProgressTable)
       .where(eq(courseProgressTable.userId, userId));
 
-    const dataPointsCollected = allProgress.reduce((sum, p) => sum + p.correctAnswers + p.incorrectAnswers + p.hintsUsed, 0);
-
-    let inferredStyle: string | null = profile.aiInferredStyle;
-    let confidence = profile.aiStyleConfidence ?? 0;
-    const strengths: string[] = [];
-    const recommendations: string[] = [];
-
     const totalCorrect = allProgress.reduce((sum, p) => sum + p.correctAnswers, 0);
     const totalIncorrect = allProgress.reduce((sum, p) => sum + p.incorrectAnswers, 0);
     const totalHints = allProgress.reduce((sum, p) => sum + p.hintsUsed, 0);
+    const answered = totalCorrect + totalIncorrect;
+    const dataPointsCollected = answered + totalHints;
 
-    if (dataPointsCollected >= 5) {
-      const accuracy = totalCorrect + totalIncorrect > 0 ? totalCorrect / (totalCorrect + totalIncorrect) : 0;
-      const hintRate = totalCorrect + totalIncorrect > 0 ? totalHints / (totalCorrect + totalIncorrect) : 0;
+    const MIN_GRADED = 5;
+    const strengths: string[] = [];
+    const focusAreas: string[] = [];
+    const signals: { label: string; score: number; detail: string }[] = [];
 
-      if (accuracy > 0.8 && hintRate < 0.2) {
-        inferredStyle = "analytical-independent";
-        confidence = Math.min(0.9, 0.5 + dataPointsCollected * 0.02);
-        strengths.push("High accuracy with minimal help needed", "Strong independent problem-solving");
-        recommendations.push("Try harder difficulty levels for more challenge", "Advanced courses with complex concepts will suit you well");
-      } else if (accuracy < 0.6 && hintRate > 0.4) {
-        inferredStyle = "guided-learner";
-        confidence = Math.min(0.85, 0.4 + dataPointsCollected * 0.02);
-        strengths.push("Effective use of available support", "Persistence through challenges");
-        recommendations.push("Increase hint frequency in settings", "Consider slower-paced courses with more repetition");
-      } else {
-        inferredStyle = "balanced-explorer";
-        confidence = Math.min(0.75, 0.3 + dataPointsCollected * 0.02);
-        strengths.push("Balanced approach to learning", "Adaptable to different content types");
-        recommendations.push("Try the adaptive settings to let the AI fine-tune your experience", "Mix theoretical and practical courses for best results");
-      }
+    let examReadiness: number | null = null;
+    let masteryLevel: string | null = null;
+    let confidence = profile.readinessConfidence ?? 0;
+    let accuracyPct = 0;
+    let selfReliancePct = 0;
 
-      if (strengths.length === 0) {
-        strengths.push("Keep learning to unlock your style insights");
-        recommendations.push("Complete more lessons to help the AI learn your style");
-      }
+    if (answered >= MIN_GRADED) {
+      const accuracy = totalCorrect / answered;
+      const hintRate = totalHints / answered;
+      const selfReliance = Math.max(0, 1 - hintRate);
+      accuracyPct = Math.round(accuracy * 100);
+      selfReliancePct = Math.round(selfReliance * 100);
 
-      await db.update(learningProfilesTable).set({
-        aiInferredStyle: inferredStyle,
-        aiStyleConfidence: confidence,
-        updatedAt: new Date(),
-      }).where(eq(learningProfilesTable.userId, userId)).catch(() => {});
+      // Exam readiness = mostly mastery, partly the ability to perform unaided (no hints in an exam)
+      examReadiness = Math.round(100 * (0.7 * accuracy + 0.3 * selfReliance));
+      confidence = Math.min(0.95, 0.4 + answered * 0.03);
+      masteryLevel = accuracy >= 0.8 ? "strong" : accuracy >= 0.6 ? "proficient" : "developing";
+
+      signals.push({
+        label: "Concept mastery",
+        score: accuracyPct,
+        detail: `${totalCorrect}/${answered} questions answered correctly`,
+      });
+      signals.push({
+        label: "Exam self-reliance",
+        score: selfReliancePct,
+        detail:
+          hintRate > 0.4
+            ? "You lean on hints often — the exam has none"
+            : hintRate > 0.2
+              ? "Moderate hint use — keep weaning off"
+              : "You solve most questions unaided",
+      });
+      signals.push({
+        label: "Practice volume",
+        score: Math.min(100, Math.round((answered / 30) * 100)),
+        detail: `${answered} graded questions answered · ${totalHints} hints used`,
+      });
+
+      if (accuracy >= 0.8) strengths.push("Strong command of the material — high answer accuracy");
+      else if (accuracy >= 0.6) strengths.push("Solid grasp of the core concepts");
+      if (selfReliance >= 0.8) strengths.push("Solves problems independently — an exam-ready habit");
+
+      if (accuracy < 0.6) focusAreas.push("Reinforce core concepts — accuracy is below exam-safe level");
+      if (hintRate > 0.4) focusAreas.push("Practice without hints to mirror exam conditions");
+      if (examReadiness < 70) focusAreas.push("Keep practicing to push readiness past 70%");
+
+      if (strengths.length === 0) strengths.push("Building momentum — keep going");
+      if (focusAreas.length === 0) focusAreas.push("Stretch yourself with harder material to deepen mastery");
+
+      const modelNotes =
+        masteryLevel === "strong"
+          ? "Tracking well — sharpen weak spots and simulate exam conditions."
+          : masteryLevel === "proficient"
+            ? "Solid foundation — targeted practice on weak areas will lift readiness."
+            : "Early stage — focus on understanding core concepts before speed.";
+
+      await db
+        .update(learningProfilesTable)
+        .set({
+          examReadinessScore: examReadiness,
+          masteryLevel,
+          readinessConfidence: confidence,
+          learnerModelNotes: modelNotes,
+          updatedAt: new Date(),
+        })
+        .where(eq(learningProfilesTable.userId, userId))
+        .catch(() => {});
     } else {
-      strengths.push("Keep learning to unlock your personalized insights");
-      recommendations.push("Complete more lessons — your learning style will emerge after a few sessions");
+      strengths.push("Your readiness profile builds as you answer graded questions");
+      focusAreas.push("Complete a few graded questions to unlock your exam-readiness score");
     }
 
-    const nextInsightAt = Math.max(0, 5 - dataPointsCollected);
+    const nextInsightAt = Math.max(0, MIN_GRADED - answered);
 
     res.json({
-      inferredStyle,
+      examReadiness,
+      masteryLevel,
       confidence,
+      accuracy: accuracyPct,
+      selfReliance: selfReliancePct,
+      signals,
       strengths,
-      recommendations,
+      focusAreas,
       dataPointsCollected,
       nextInsightAt,
     });
   } catch (err) {
-    req.log.error({ err }, "Failed to get learning style");
-    res.status(500).json({ error: "Failed to get learning style" });
+    req.log.error({ err }, "Failed to get learner model");
+    res.status(500).json({ error: "Failed to get learner model" });
   }
 });
 

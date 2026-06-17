@@ -25,17 +25,22 @@ export interface LearningProfile {
   showExplanationsAfterCorrect: boolean;
   enableHints: boolean;
   /**
-     * AI-inferred learning style label e.g. "visual-analytical"
+     * 0-100 composite exam-readiness score, null until enough data
      * @nullable
      */
-  aiInferredStyle?: string | null;
+  examReadinessScore?: number | null;
   /**
-     * Confidence 0-1 of the inferred style
+     * Coarse mastery band — developing | proficient | strong
      * @nullable
      */
-  aiStyleConfidence?: number | null;
+  masteryLevel?: string | null;
+  /**
+     * 0-1 confidence in the readiness estimate
+     * @nullable
+     */
+  readinessConfidence?: number | null;
   /** @nullable */
-  aiStyleNotes?: string | null;
+  learnerModelNotes?: string | null;
   /** @nullable */
   lastActiveAt?: Date | null;
 }

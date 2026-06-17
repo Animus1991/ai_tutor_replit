@@ -1,6 +1,6 @@
 # LearnAI
 
-An AI-powered adaptive learning platform. Users upload study notes and the AI generates personalized interactive tutoring lessons. Two core innovations: (1) notes → interactive lesson via AI, (2) gradual auto-discovery of user's learning style through behavior.
+An AI-powered adaptive learning platform. Users upload study notes and the AI generates personalized interactive tutoring lessons. Two core innovations: (1) notes → interactive lesson via AI, (2) an evidence-based Mastery & Exam-Readiness model that scores how exam-ready a user is from their actual performance (accuracy, hint reliance, practice volume) — never from a self-reported "learning style".
 
 ## Run & Operate
 
@@ -42,16 +42,16 @@ An AI-powered adaptive learning platform. Users upload study notes and the AI ge
 - Clerk auth with proxy middleware — cookies, no Bearer tokens
 - SSE streaming for AI generation (course steps, hints, explanations, tutor chat)
 - AI model: `gpt-5.4` for all generation
-- Learning style is inferred automatically from quiz accuracy + hint usage — never asked of the user
+- Exam readiness & mastery are computed from observed performance (quiz accuracy, hint reliance, practice volume) — never from a pseudo-scientific "learning style"
 - All protected routes use `requireAuth` middleware which extracts `userId` from Clerk session
 
 ## Product
 
 - Landing page (public) → sign up → upload notes → create course (select type/difficulty/quiz freq) → AI generates lesson via SSE → interactive lesson player
 - Lesson player: step-by-step progress, knowledge checks, code exercises, hint panel, explain panel, AI tutor chat
-- Dashboard: XP, streak, recent courses, AI-inferred learning style insights
-- Profile: adaptive preferences (quiz frequency, pace, difficulty, course type) + learning style
-- Learning style auto-inferred from behavior after 5+ data points (accuracy + hint usage patterns)
+- Dashboard: Exam-Readiness score (hero ring), mastery level + evidence signals, with XP/streak/recent courses as secondary stats
+- Profile: adaptive preferences (quiz frequency, pace, difficulty, course type) + Mastery & Exam-Readiness panel
+- Exam readiness & mastery auto-computed after 5+ graded questions answered (hints are a signal, not unlock evidence); readiness = round(100 * (0.7*accuracy + 0.3*self-reliance)), mastery bands strong≥0.8 / proficient≥0.6 / developing
 
 ## User preferences
 

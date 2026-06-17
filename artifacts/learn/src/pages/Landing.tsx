@@ -45,7 +45,7 @@ export default function LandingPage() {
             </h1>
             
             <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Don't just re-read your notes. LearnAI converts raw text into interactive, adaptive lessons that actually figure out how you learn best.
+              Don't just re-read your notes. LearnAI turns raw material into interactive, adaptive lessons — and scores how exam-ready you actually are from your real performance.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -81,9 +81,9 @@ export default function LandingPage() {
                 <div className="h-12 w-12 rounded-xl bg-cyan-500/20 flex items-center justify-center mb-6">
                   <Brain className="h-6 w-6 text-cyan-400" />
                 </div>
-                <h2 className="text-3xl font-bold text-white mb-4">Discovers your learning style automatically</h2>
+                <h2 className="text-3xl font-bold text-white mb-4">Knows how exam-ready you actually are</h2>
                 <p className="text-slate-400 text-lg leading-relaxed">
-                  Are you a visual learner? Do you need more practical examples? You don't have to tell us. LearnAI analyzes your behavior, quiz performance, and hint requests to silently adapt its teaching style to match exactly what you need.
+                  No personality quizzes about how you learn. LearnAI measures your real performance — quiz accuracy, how often you lean on hints, and how much you practice — to score your exam readiness and show you exactly what to fix before test day.
                 </p>
               </div>
             </div>

@@ -1,4 +1,2 @@
-- [LearnAI architecture](learnai-arch.md) — contract-first API, Clerk auth, SSE streaming for AI, gpt-5.4, learning style auto-inferred
-- [Express 5 param types](express5-params.md) — req.params.id typed as string|string[], must cast with as string
-- [API hook id types](api-hook-types.md) — generated hooks expect number not string for id params; always pass Number(id)
-- [Lib build order](lib-build-order.md) — typecheck:libs must run before leaf package typechecks; @workspace/integrations-openai-ai-react needs @types/react devDep
+- [drizzle-kit push TTY](drizzle-kit-push-tty.md) — column renames need an interactive TTY; in dev, apply the DDL directly via SQL instead.
+- [Learner-model gating](learner-model-gating.md) — exam-readiness/mastery must unlock on graded ANSWERS only; hints are a signal, never unlock evidence.

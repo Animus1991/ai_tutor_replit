@@ -17,6 +17,4 @@ export interface DashboardStats {
   weeklyXp: number;
   averageScore: number;
   recentCourses: Course[];
-  /** @nullable */
-  aiStyleLabel?: string | null;
 }
