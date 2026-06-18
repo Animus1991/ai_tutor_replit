@@ -22,6 +22,8 @@ import type {
 import type {
   ActivityItem,
   ApiError,
+  ConceptReviewInput,
+  ConceptReviewResult,
   Course,
   CourseConcepts,
   CourseInput,
@@ -29,6 +31,9 @@ import type {
   CourseRegenerateInput,
   CourseWithSteps,
   DashboardStats,
+  ErrorNotebook,
+  ExamMock,
+  GetExamMockParams,
   HealthStatus,
   LearnerModel,
   LearningProfile,
@@ -36,6 +41,7 @@ import type {
   LessonStep,
   Note,
   NoteInput,
+  NoteUploadInput,
   OpenaiConversation,
   OpenaiConversationInput,
   OpenaiConversationWithMessages,
@@ -45,7 +51,10 @@ import type {
   OpenaiMessage,
   OpenaiMessageInput,
   ProgressFeedback,
-  ProgressUpdate
+  ProgressUpdate,
+  StudyPlan,
+  TaskCount,
+  TaskQueue
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -284,6 +293,77 @@ export const useCreateNote = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateNoteMutationOptions(options));
+    }
+
+export const getUploadNoteUrl = () => {
+
+
+
+
+  return `/api/notes/upload`
+}
+
+/**
+ * @summary Upload a PDF, image, or text file as study material
+ */
+export const uploadNote = async (noteUploadInput: NoteUploadInput, options?: RequestInit): Promise<Note> => {
+
+  return customFetch<Note>(getUploadNoteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      noteUploadInput,)
+  }
+);}
+
+
+
+
+export const getUploadNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadNote>>, TError,{data: BodyType<NoteUploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadNote>>, TError,{data: BodyType<NoteUploadInput>}, TContext> => {
+
+const mutationKey = ['uploadNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadNote>>, {data: BodyType<NoteUploadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadNote(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadNoteMutationResult = NonNullable<Awaited<ReturnType<typeof uploadNote>>>
+    export type UploadNoteMutationBody = BodyType<NoteUploadInput>
+    export type UploadNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upload a PDF, image, or text file as study material
+ */
+export const useUploadNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadNote>>, TError,{data: BodyType<NoteUploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadNote>>,
+        TError,
+        {data: BodyType<NoteUploadInput>},
+        TContext
+      > => {
+      return useMutation(getUploadNoteMutationOptions(options));
     }
 
 export const getGetNoteUrl = (id: number,) => {
@@ -1766,6 +1846,470 @@ export function useGetLearnerModel<TData = Awaited<ReturnType<typeof getLearnerM
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLearnerModelQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetTasksUrl = () => {
+
+
+
+
+  return `/api/tasks`
+}
+
+/**
+ * @summary Today's due reviews and open mistakes
+ */
+export const getTasks = async ( options?: RequestInit): Promise<TaskQueue> => {
+
+  return customFetch<TaskQueue>(getGetTasksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTasksQueryKey = () => {
+    return [
+    `/api/tasks`
+    ] as const;
+    }
+
+
+export const getGetTasksQueryOptions = <TData = Awaited<ReturnType<typeof getTasks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTasksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTasks>>> = ({ signal }) => getTasks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTasks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTasksQueryResult = NonNullable<Awaited<ReturnType<typeof getTasks>>>
+export type GetTasksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Today's due reviews and open mistakes
+ */
+
+export function useGetTasks<TData = Awaited<ReturnType<typeof getTasks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTasksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetTaskCountUrl = () => {
+
+
+
+
+  return `/api/tasks/count`
+}
+
+/**
+ * @summary Count of overdue reviews and open mistakes (for nav badge)
+ */
+export const getTaskCount = async ( options?: RequestInit): Promise<TaskCount> => {
+
+  return customFetch<TaskCount>(getGetTaskCountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTaskCountQueryKey = () => {
+    return [
+    `/api/tasks/count`
+    ] as const;
+    }
+
+
+export const getGetTaskCountQueryOptions = <TData = Awaited<ReturnType<typeof getTaskCount>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaskCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaskCountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaskCount>>> = ({ signal }) => getTaskCount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaskCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTaskCountQueryResult = NonNullable<Awaited<ReturnType<typeof getTaskCount>>>
+export type GetTaskCountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Count of overdue reviews and open mistakes (for nav badge)
+ */
+
+export function useGetTaskCount<TData = Awaited<ReturnType<typeof getTaskCount>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaskCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTaskCountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitConceptReviewUrl = (conceptId: number,) => {
+
+
+
+
+  return `/api/tasks/${conceptId}/review`
+}
+
+/**
+ * @summary Submit a spaced-repetition recall rating for a concept
+ */
+export const submitConceptReview = async (conceptId: number,
+    conceptReviewInput: ConceptReviewInput, options?: RequestInit): Promise<ConceptReviewResult> => {
+
+  return customFetch<ConceptReviewResult>(getSubmitConceptReviewUrl(conceptId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      conceptReviewInput,)
+  }
+);}
+
+
+
+
+export const getSubmitConceptReviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitConceptReview>>, TError,{conceptId: number;data: BodyType<ConceptReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitConceptReview>>, TError,{conceptId: number;data: BodyType<ConceptReviewInput>}, TContext> => {
+
+const mutationKey = ['submitConceptReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitConceptReview>>, {conceptId: number;data: BodyType<ConceptReviewInput>}> = (props) => {
+          const {conceptId,data} = props ?? {};
+
+          return  submitConceptReview(conceptId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitConceptReviewMutationResult = NonNullable<Awaited<ReturnType<typeof submitConceptReview>>>
+    export type SubmitConceptReviewMutationBody = BodyType<ConceptReviewInput>
+    export type SubmitConceptReviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a spaced-repetition recall rating for a concept
+ */
+export const useSubmitConceptReview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitConceptReview>>, TError,{conceptId: number;data: BodyType<ConceptReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitConceptReview>>,
+        TError,
+        {conceptId: number;data: BodyType<ConceptReviewInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitConceptReviewMutationOptions(options));
+    }
+
+export const getGetStudyPlanUrl = () => {
+
+
+
+
+  return `/api/study-plan`
+}
+
+/**
+ * @summary Exam-date-driven daily study plan
+ */
+export const getStudyPlan = async ( options?: RequestInit): Promise<StudyPlan> => {
+
+  return customFetch<StudyPlan>(getGetStudyPlanUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudyPlanQueryKey = () => {
+    return [
+    `/api/study-plan`
+    ] as const;
+    }
+
+
+export const getGetStudyPlanQueryOptions = <TData = Awaited<ReturnType<typeof getStudyPlan>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudyPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudyPlanQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudyPlan>>> = ({ signal }) => getStudyPlan({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudyPlan>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudyPlanQueryResult = NonNullable<Awaited<ReturnType<typeof getStudyPlan>>>
+export type GetStudyPlanQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Exam-date-driven daily study plan
+ */
+
+export function useGetStudyPlan<TData = Awaited<ReturnType<typeof getStudyPlan>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudyPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudyPlanQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetErrorNotebookUrl = () => {
+
+
+
+
+  return `/api/mistakes/notebook`
+}
+
+/**
+ * @summary Error notebook — all mistakes with explanations
+ */
+export const getErrorNotebook = async ( options?: RequestInit): Promise<ErrorNotebook> => {
+
+  return customFetch<ErrorNotebook>(getGetErrorNotebookUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetErrorNotebookQueryKey = () => {
+    return [
+    `/api/mistakes/notebook`
+    ] as const;
+    }
+
+
+export const getGetErrorNotebookQueryOptions = <TData = Awaited<ReturnType<typeof getErrorNotebook>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getErrorNotebook>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetErrorNotebookQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getErrorNotebook>>> = ({ signal }) => getErrorNotebook({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getErrorNotebook>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetErrorNotebookQueryResult = NonNullable<Awaited<ReturnType<typeof getErrorNotebook>>>
+export type GetErrorNotebookQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Error notebook — all mistakes with explanations
+ */
+
+export function useGetErrorNotebook<TData = Awaited<ReturnType<typeof getErrorNotebook>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getErrorNotebook>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetErrorNotebookQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetExamMockUrl = (params?: GetExamMockParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/exam/mock?${stringifiedParams}` : `/api/exam/mock`
+}
+
+/**
+ * @summary Generate a timed exam simulation from weak concepts
+ */
+export const getExamMock = async (params?: GetExamMockParams, options?: RequestInit): Promise<ExamMock> => {
+
+  return customFetch<ExamMock>(getGetExamMockUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetExamMockQueryKey = (params?: GetExamMockParams,) => {
+    return [
+    `/api/exam/mock`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetExamMockQueryOptions = <TData = Awaited<ReturnType<typeof getExamMock>>, TError = ErrorType<ApiError>>(params?: GetExamMockParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getExamMock>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetExamMockQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getExamMock>>> = ({ signal }) => getExamMock(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getExamMock>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetExamMockQueryResult = NonNullable<Awaited<ReturnType<typeof getExamMock>>>
+export type GetExamMockQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Generate a timed exam simulation from weak concepts
+ */
+
+export function useGetExamMock<TData = Awaited<ReturnType<typeof getExamMock>>, TError = ErrorType<ApiError>>(
+ params?: GetExamMockParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getExamMock>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetExamMockQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

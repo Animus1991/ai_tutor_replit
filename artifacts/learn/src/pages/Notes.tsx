@@ -1,16 +1,27 @@
-import { useState } from "react";
-import { Link } from "wouter";
-import { useListNotes, useCreateNote, useDeleteNote, getListNotesQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { BookOpen, FileText, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "@/lib/wouter-compat";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getListNotesQueryKey,
+  useCreateNote,
+  useDeleteNote,
+  useListNotes,
+  useUploadNote,
+} from "@workspace/api-client-react";
+import { BookOpen, FileText, Plus, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -20,37 +31,83 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export default function NotesPage() {
+export default function NotesPage({
+  embedded = false,
+}: { embedded?: boolean }) {
   const { data: notes, isLoading } = useListNotes();
   const createNote = useCreateNote();
+  const uploadNote = useUploadNote();
   const deleteNote = useDeleteNote();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showDialog, setShowDialog] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"text" | "file">("text");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [subject, setSubject] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const allNotes = notes as Array<{
-    id: number; title: string; content: string; subject?: string;
-    wordCount: number; createdAt: string;
-  }> | undefined;
+  const allNotes = notes as
+    | Array<{
+        id: number;
+        title: string;
+        content: string;
+        subject?: string;
+        wordCount: number;
+        createdAt: string;
+      }>
+    | undefined;
 
   async function handleCreate() {
-    if (!title.trim() || !content.trim()) {
-      toast({ title: "Missing fields", description: "Title and content are required.", variant: "destructive" });
+    if (!title.trim()) {
+      toast({ title: "Missing title", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
     try {
-      await createNote.mutateAsync({ data: { title: title.trim(), content: content.trim(), subject: subject.trim() || undefined } as never });
+      if (uploadMode === "file" && selectedFile) {
+        const buffer = await selectedFile.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++)
+          binary += String.fromCharCode(bytes[i]!);
+        await uploadNote.mutateAsync({
+          data: {
+            title: title.trim(),
+            subject: subject.trim() || undefined,
+            fileName: selectedFile.name,
+            mimeType: selectedFile.type || "application/octet-stream",
+            fileBase64: btoa(binary),
+          } as never,
+        });
+      } else {
+        if (!content.trim()) {
+          toast({ title: "Missing content", variant: "destructive" });
+          return;
+        }
+        await createNote.mutateAsync({
+          data: {
+            title: title.trim(),
+            content: content.trim(),
+            subject: subject.trim() || undefined,
+          } as never,
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: getListNotesQueryKey() });
       setShowDialog(false);
-      setTitle(""); setContent(""); setSubject("");
-      toast({ title: "Note saved", description: "Your notes are ready to generate a course." });
+      setTitle("");
+      setContent("");
+      setSubject("");
+      setSelectedFile(null);
+      setUploadMode("text");
+      toast({
+        title: "Note saved",
+        description: "Your notes are ready to generate a course.",
+      });
     } catch {
       toast({ title: "Failed to save note", variant: "destructive" });
     } finally {
@@ -70,21 +127,35 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Notes</h1>
-          <p className="text-muted-foreground mt-1">Your study material library</p>
+    <div className={embedded ? "space-y-6" : "space-y-8"}>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Notes</h1>
+            <p className="text-muted-foreground mt-1">
+              Your study material library
+            </p>
+          </div>
+          <Button onClick={() => setShowDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Upload Notes
+          </Button>
         </div>
-        <Button onClick={() => setShowDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Upload Notes
-        </Button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <Button onClick={() => setShowDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Upload Notes
+          </Button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-40 bg-white/5 rounded-xl animate-pulse" />)}
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-40 bg-white/5 rounded-xl animate-pulse" />
+          ))}
         </div>
       ) : !allNotes?.length ? (
         <Card className="border-dashed border-border bg-transparent">
@@ -92,7 +163,8 @@ export default function NotesPage() {
             <FileText className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
             <h2 className="text-2xl font-semibold mb-3">No notes yet</h2>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Paste your lecture notes, study guides, or any text material. The AI will transform them into an interactive lesson.
+              Paste your lecture notes, study guides, or any text material. The
+              AI will transform them into an interactive lesson.
             </p>
             <Button size="lg" onClick={() => setShowDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -103,11 +175,16 @@ export default function NotesPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {allNotes.map((note) => (
-            <Card key={note.id} className="bg-card border-border hover:border-primary/30 transition-colors group relative">
+            <Card
+              key={note.id}
+              className="bg-card border-border hover:border-primary/30 transition-colors group relative"
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <Link href={`/notes/${note.id}`} className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">{note.title}</h3>
+                    <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                      {note.title}
+                    </h3>
                   </Link>
                   <button
                     onClick={() => setDeleteId(note.id)}
@@ -117,15 +194,24 @@ export default function NotesPage() {
                   </button>
                 </div>
                 {note.subject && (
-                  <Badge variant="secondary" className="mb-3 text-xs">{note.subject}</Badge>
+                  <Badge variant="secondary" className="mb-3 text-xs">
+                    {note.subject}
+                  </Badge>
                 )}
                 <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
                   {note.content.slice(0, 150)}...
                 </p>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{note.wordCount.toLocaleString()} words · {timeAgo(note.createdAt)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {note.wordCount.toLocaleString()} words ·{" "}
+                    {timeAgo(note.createdAt)}
+                  </span>
                   <Link href={`/courses/new?noteId=${note.id}`}>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs text-primary hover:text-primary">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-primary hover:text-primary"
+                    >
                       <BookOpen className="h-3 w-3 mr-1" />
                       Generate Lesson
                     </Button>
@@ -143,37 +229,95 @@ export default function NotesPage() {
             <DialogTitle>Upload Study Notes</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={uploadMode === "text" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUploadMode("text")}
+              >
+                Paste Text
+              </Button>
+              <Button
+                type="button"
+                variant={uploadMode === "file" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUploadMode("file")}
+              >
+                <Upload className="h-3 w-3 mr-1" />
+                Upload File
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Title</Label>
                 <Input
                   placeholder="e.g. Chapter 5: Neural Networks"
                   value={title}
-                  onChange={e => setTitle(e.target.value)}
+                  onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Subject <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Label>
+                  Subject{" "}
+                  <span className="text-muted-foreground text-xs">
+                    (optional)
+                  </span>
+                </Label>
                 <Input
                   placeholder="e.g. Machine Learning"
                   value={subject}
-                  onChange={e => setSubject(e.target.value)}
+                  onChange={(e) => setSubject(e.target.value)}
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Content</Label>
-              <Textarea
-                placeholder="Paste your lecture notes, study material, or any text here..."
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                rows={12}
-                className="resize-none font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">{content.trim().split(/\s+/).filter(Boolean).length} words</p>
-            </div>
+            {uploadMode === "text" ? (
+              <div className="space-y-1.5">
+                <Label>Content</Label>
+                <Textarea
+                  placeholder="Paste your lecture notes, study material, or any text here..."
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows={12}
+                  className="resize-none font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {content.trim().split(/\s+/).filter(Boolean).length} words
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>File (PDF, image, or text — max 15 MB)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp"
+                  className="hidden"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors"
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  {selectedFile ? (
+                    <p className="text-sm font-medium">
+                      {selectedFile.name} (
+                      {(selectedFile.size / 1024).toFixed(0)} KB)
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Click to select a PDF, image, or text file
+                    </p>
+                  )}
+                </button>
+              </div>
+            )}
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setShowDialog(false)}>
+                Cancel
+              </Button>
               <Button onClick={handleCreate} disabled={isSubmitting}>
                 {isSubmitting ? "Saving..." : "Save Notes"}
               </Button>
@@ -187,10 +331,20 @@ export default function NotesPage() {
           <DialogHeader>
             <DialogTitle>Delete Note?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">This will permanently delete the note and all associated courses. This cannot be undone.</p>
+          <p className="text-sm text-muted-foreground">
+            This will permanently delete the note and all associated courses.
+            This cannot be undone.
+          </p>
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteId && handleDelete(deleteId)}>Delete</Button>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteId && handleDelete(deleteId)}
+            >
+              Delete
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,0 +1,10 @@
+import fs from "node:fs";
+const s = fs.readFileSync("artifacts/learn/src/lib/i18n.ts", "utf8");
+const enBlock = s.match(/const EN[\s\S]*?};/)[0];
+const elBlock = s.match(/const EL[\s\S]*?};/)[0];
+const keys = (block) => [...block.matchAll(/"([^"]+)":/g)].map((m) => m[1]);
+const enK = keys(enBlock);
+const elSet = new Set(keys(elBlock));
+const missing = enK.filter((k) => !elSet.has(k));
+console.log("EN:", enK.length, "EL:", elSet.size, "Missing:", missing.length);
+for (const k of missing) console.log(k);

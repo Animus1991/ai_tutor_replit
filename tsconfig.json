@@ -7,6 +7,12 @@
       "path": "./lib/db"
     },
     {
+      "path": "./lib/clerk-config"
+    },
+    {
+      "path": "./lib/storage"
+    },
+    {
       "path": "./lib/api-client-react"
     },
     {

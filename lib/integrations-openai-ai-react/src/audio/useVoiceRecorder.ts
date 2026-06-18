@@ -2,7 +2,7 @@
  * React hook for voice recording using MediaRecorder API.
  * Negotiates a supported MIME type across browsers (Chrome, Firefox, Safari).
  */
-import { useRef, useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export type RecordingState = "idle" | "recording" | "stopped";
 
@@ -57,7 +57,8 @@ export function useVoiceRecorder() {
       }
 
       recorder.onstop = () => {
-        const blobType = mimeTypeRef.current ?? recorder.mimeType ?? "audio/webm";
+        const blobType =
+          mimeTypeRef.current ?? recorder.mimeType ?? "audio/webm";
         const blob = new Blob(chunksRef.current, { type: blobType });
         recorder.stream.getTracks().forEach((t) => t.stop());
         setState("stopped");

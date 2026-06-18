@@ -2,7 +2,7 @@
  * React hook for voice recording using MediaRecorder API.
  * Records audio in WebM/Opus format for efficient streaming.
  */
-import { useRef, useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export type RecordingState = "idle" | "recording" | "stopped";
 
@@ -49,4 +49,3 @@ export function useVoiceRecorder() {
 
   return { state, startRecording, stopRecording };
 }
-

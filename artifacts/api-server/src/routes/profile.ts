@@ -1,8 +1,8 @@
-import { Router } from "express";
 import { db } from "@workspace/db";
 import { learningProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth, type AuthRequest } from "./auth";
+import { Router } from "express";
+import { type AuthRequest, requireAuth } from "./auth";
 
 const router = Router();
 
@@ -40,6 +40,12 @@ router.get("/profile", requireAuth, async (req: AuthRequest, res) => {
       masteryLevel: profile.masteryLevel,
       readinessConfidence: profile.readinessConfidence,
       learnerModelNotes: profile.learnerModelNotes,
+      examDate: profile.examDate,
+      dailyStudyMinutes: profile.dailyStudyMinutes,
+      preferredLanguage: profile.preferredLanguage,
+      agentMode: profile.agentMode,
+      strictSourceMode: profile.strictSourceMode === 1,
+      socraticMode: profile.socraticMode === 1,
       lastActiveAt: profile.lastActiveAt,
     });
   } catch (err) {
@@ -51,20 +57,51 @@ router.get("/profile", requireAuth, async (req: AuthRequest, res) => {
 router.patch("/profile", requireAuth, async (req: AuthRequest, res) => {
   try {
     const {
-      displayName, quizFrequencyPreference, learningPacePreference,
-      preferredCourseType, preferredDifficulty, showExplanationsAfterCorrect, enableHints
+      displayName,
+      quizFrequencyPreference,
+      learningPacePreference,
+      preferredCourseType,
+      preferredDifficulty,
+      showExplanationsAfterCorrect,
+      enableHints,
+      examDate,
+      dailyStudyMinutes,
+      preferredLanguage,
+      agentMode,
+      strictSourceMode,
+      socraticMode,
     } = req.body;
 
     await getOrCreateProfile(req.userId!);
 
-    const updates: Record<string, unknown> = { updatedAt: new Date(), lastActiveAt: new Date() };
+    const updates: Record<string, unknown> = {
+      updatedAt: new Date(),
+      lastActiveAt: new Date(),
+    };
     if (displayName !== undefined) updates.displayName = displayName;
-    if (quizFrequencyPreference !== undefined) updates.quizFrequencyPreference = quizFrequencyPreference;
-    if (learningPacePreference !== undefined) updates.learningPacePreference = learningPacePreference;
-    if (preferredCourseType !== undefined) updates.preferredCourseType = preferredCourseType;
-    if (preferredDifficulty !== undefined) updates.preferredDifficulty = preferredDifficulty;
-    if (showExplanationsAfterCorrect !== undefined) updates.showExplanationsAfterCorrect = showExplanationsAfterCorrect ? 1 : 0;
+    if (quizFrequencyPreference !== undefined)
+      updates.quizFrequencyPreference = quizFrequencyPreference;
+    if (learningPacePreference !== undefined)
+      updates.learningPacePreference = learningPacePreference;
+    if (preferredCourseType !== undefined)
+      updates.preferredCourseType = preferredCourseType;
+    if (preferredDifficulty !== undefined)
+      updates.preferredDifficulty = preferredDifficulty;
+    if (showExplanationsAfterCorrect !== undefined)
+      updates.showExplanationsAfterCorrect = showExplanationsAfterCorrect
+        ? 1
+        : 0;
     if (enableHints !== undefined) updates.enableHints = enableHints ? 1 : 0;
+    if (examDate !== undefined)
+      updates.examDate = examDate ? new Date(examDate) : null;
+    if (dailyStudyMinutes !== undefined)
+      updates.dailyStudyMinutes = Number(dailyStudyMinutes);
+    if (preferredLanguage !== undefined)
+      updates.preferredLanguage = preferredLanguage;
+    if (agentMode !== undefined) updates.agentMode = agentMode;
+    if (strictSourceMode !== undefined)
+      updates.strictSourceMode = strictSourceMode ? 1 : 0;
+    if (socraticMode !== undefined) updates.socraticMode = socraticMode ? 1 : 0;
 
     const [profile] = await db
       .update(learningProfilesTable)
@@ -89,6 +126,12 @@ router.patch("/profile", requireAuth, async (req: AuthRequest, res) => {
       masteryLevel: profile.masteryLevel,
       readinessConfidence: profile.readinessConfidence,
       learnerModelNotes: profile.learnerModelNotes,
+      examDate: profile.examDate,
+      dailyStudyMinutes: profile.dailyStudyMinutes,
+      preferredLanguage: profile.preferredLanguage,
+      agentMode: profile.agentMode,
+      strictSourceMode: profile.strictSourceMode === 1,
+      socraticMode: profile.socraticMode === 1,
       lastActiveAt: profile.lastActiveAt,
     });
   } catch (err) {

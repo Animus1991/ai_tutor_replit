@@ -6,3 +6,5 @@ export * from "./conversations";
 export * from "./messages";
 export * from "./concepts";
 export * from "./mastery";
+export * from "./sourceChunks";
+export * from "./auth";

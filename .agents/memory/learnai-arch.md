@@ -8,8 +8,11 @@ description: Key architectural decisions for the LearnAI adaptive learning platf
 - **API contract**: OpenAPI spec in `lib/api-spec/openapi.yaml` → Orval codegen → React Query hooks (`lib/api-client-react`) + Zod schemas (`lib/api-zod`)
 - **Auth**: Clerk with proxy middleware. `requireAuth` middleware extracts `userId` from `getAuth(req)`. Cookie-based, no Bearer tokens on client.
 - **AI**: `@workspace/integrations-openai-ai-server` wraps OpenAI. Model: `gpt-5.4` for all generation. SSE streaming for: course step generation, hints, explanations, tutor chat.
-- **DB**: PostgreSQL + Drizzle ORM. Tables: `notes`, `courses`, `lesson_steps`, `course_progress`, `activity_log`, `learning_profiles`, `conversations`, `messages`.
-- **Learning style**: Auto-inferred from behavior (quiz accuracy + hint usage rate) after 5+ data points. Never asked of the user. Stored in `learning_profiles.ai_inferred_style`.
+- **DB**: PostgreSQL + Drizzle ORM. Tables: `notes`, `source_chunks`, `courses`, `lesson_steps`, `concepts`, `concept_edges`, `lesson_step_concepts`, `course_progress`, `activity_log`, `answer_events`, `learning_profiles`, `mastery_records`, `mistakes`, `review_schedules`, `conversations`, `messages`.
+- **Learner model**: Behaviour-derived only — no learning-style questionnaires. Adaptive prefs (`quizFrequencyPreference`, etc.) are explicit user choices, not inferred mastery proxies.
+- **Phase 2 (Tasks)**: `GET /tasks`, `POST /tasks/:conceptId/review`, `/tasks` page with nav badge. FSRS-lite in `artifacts/api-server/src/lib/fsrs.ts`.
+- **Phase 3 (Grounding)**: PDF/image upload via `POST /notes/upload`, chunking + embeddings in `source_chunks`, retrieval in `sourceRetrieval.ts`, grounded generation in `courses.ts`, tutor "not in notes" guard in `openai-routes.ts`.
+- **Conversation security**: `conversations.user_id` required; all tutor routes filter by `req.userId`.
 - **SSE pattern**: Set `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`. Each event: `data: ${JSON.stringify(payload)}\n\n`.
 - **Frontend routing**: wouter with base path. Clerk inside WouterRouter. Protected routes use `<Show when="signed-in">`.
 - **Course generation flow**: POST /api/courses (creates with status=generating) → POST /api/courses/:id/generate-steps (SSE, calls OpenAI, inserts steps, sets status=ready).

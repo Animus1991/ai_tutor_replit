@@ -1,12 +1,21 @@
-import { Router } from "express";
 import { db } from "@workspace/db";
 import {
-  coursesTable, lessonStepsTable, notesTable,
-  conceptsTable, conceptEdgesTable, lessonStepConceptsTable, masteryRecordsTable,
+  conceptEdgesTable,
+  conceptsTable,
+  coursesTable,
+  lessonStepConceptsTable,
+  lessonStepsTable,
+  masteryRecordsTable,
+  notesTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { requireAuth, type AuthRequest } from "./auth";
+import { and, eq } from "drizzle-orm";
+import { Router } from "express";
+import {
+  formatGroundingContext,
+  retrieveRelevantChunks,
+} from "../lib/sourceRetrieval";
+import { type AuthRequest, requireAuth } from "./auth";
 
 const router = Router();
 
@@ -26,14 +35,32 @@ router.get("/courses", requireAuth, async (req: AuthRequest, res) => {
 
 router.post("/courses", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { noteId, title, courseType, difficulty, quizFrequency, additionalInstructions } = req.body as Record<string, string>;
-    if (!noteId) { res.status(400).json({ error: "noteId is required" }); return; }
+    const {
+      noteId,
+      title,
+      courseType,
+      difficulty,
+      quizFrequency,
+      additionalInstructions,
+    } = req.body as Record<string, string>;
+    if (!noteId) {
+      res.status(400).json({ error: "noteId is required" });
+      return;
+    }
 
     const [note] = await db
       .select()
       .from(notesTable)
-      .where(and(eq(notesTable.id, Number(noteId)), eq(notesTable.userId, req.userId!)));
-    if (!note) { res.status(404).json({ error: "Note not found" }); return; }
+      .where(
+        and(
+          eq(notesTable.id, Number(noteId)),
+          eq(notesTable.userId, req.userId!),
+        ),
+      );
+    if (!note) {
+      res.status(404).json({ error: "Note not found" });
+      return;
+    }
 
     const courseTitle = title || `${note.title} — Interactive Lesson`;
     const [course] = await db
@@ -63,12 +90,17 @@ router.post("/courses", requireAuth, async (req: AuthRequest, res) => {
 
 router.get("/courses/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const id = parseInt(req.params["id"] as string);
+    const id = Number.parseInt(req.params.id as string);
     const [course] = await db
       .select()
       .from(coursesTable)
-      .where(and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)));
-    if (!course) { res.status(404).json({ error: "Course not found" }); return; }
+      .where(
+        and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)),
+      );
+    if (!course) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
 
     const steps = await db
       .select()
@@ -85,12 +117,15 @@ router.get("/courses/:id", requireAuth, async (req: AuthRequest, res) => {
 
 router.delete("/courses/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const id = parseInt(req.params["id"] as string);
+    const id = Number.parseInt(req.params.id as string);
     const [deleted] = await db
       .delete(coursesTable)
       .where(and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)))
       .returning();
-    if (!deleted) { res.status(404).json({ error: "Course not found" }); return; }
+    if (!deleted) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete course");
@@ -98,40 +133,49 @@ router.delete("/courses/:id", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/courses/:id/generate-steps", requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(req.params["id"] as string);
+router.post(
+  "/courses/:id/generate-steps",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    const id = Number.parseInt(req.params.id as string);
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-  try {
-    const [course] = await db
-      .select()
-      .from(coursesTable)
-      .where(and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)));
-    if (!course) {
-      res.write(`data: ${JSON.stringify({ error: "Course not found" })}\n\n`);
-      res.end(); return;
-    }
+    try {
+      const [course] = await db
+        .select()
+        .from(coursesTable)
+        .where(
+          and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)),
+        );
+      if (!course) {
+        res.write(`data: ${JSON.stringify({ error: "Course not found" })}\n\n`);
+        res.end();
+        return;
+      }
 
-    const [note] = await db
-      .select()
-      .from(notesTable)
-      .where(eq(notesTable.id, course.noteId));
-    if (!note) {
-      res.write(`data: ${JSON.stringify({ error: "Note not found" })}\n\n`);
-      res.end(); return;
-    }
+      const [note] = await db
+        .select()
+        .from(notesTable)
+        .where(eq(notesTable.id, course.noteId));
+      if (!note) {
+        res.write(`data: ${JSON.stringify({ error: "Note not found" })}\n\n`);
+        res.end();
+        return;
+      }
 
-    res.write(`data: ${JSON.stringify({ status: "generating", message: "AI tutor is preparing your lesson..." })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ status: "generating", message: "AI tutor is preparing your lesson..." })}\n\n`,
+      );
 
-    const quizMap: Record<string, number> = { low: 2, medium: 4, high: 6 };
-    const quizCount = quizMap[course.quizFrequency] ?? 3;
-    const isPractical = course.courseType === "practical";
-    const isMixed = course.courseType === "mixed";
+      const quizMap: Record<string, number> = { low: 2, medium: 4, high: 6 };
+      const quizCount = quizMap[course.quizFrequency] ?? 3;
+      const isPractical = course.courseType === "practical";
+      const isMixed = course.courseType === "mixed";
 
-    const systemPrompt = `You are an expert educational content designer specializing in adaptive learning systems. You combine principles from cognitive psychology, Montessori education, spaced repetition (Ebbinghaus), active recall, and the Feynman Technique to create highly effective personalized lessons.
+      const systemPrompt = `You are an expert educational content designer specializing in adaptive learning systems. You combine principles from cognitive psychology, Montessori education, spaced repetition (Ebbinghaus), active recall, and the Feynman Technique to create highly effective personalized lessons.
 
 Generate a complete, structured interactive lesson from the user's notes. The lesson should:
 1. Start with a motivating introduction that sets context and learning objectives
@@ -188,334 +232,452 @@ Return a JSON object with this exact structure:
 Make the content RICH, EDUCATIONAL, DETAILED. Use markdown for formatting. The lesson should feel like a real tutoring session with a knowledgeable professor who adapts to the student.
 ${course.additionalInstructions ? `\n\nAdditional instructions from the learner: ${course.additionalInstructions}` : ""}`;
 
-    const userMessage = `Create an interactive ${course.courseType} lesson from these study notes:\n\nTitle: ${note.title}\n${note.subject ? `Subject: ${note.subject}\n` : ""}\n${note.content}`;
+      const userMessage = `Create an interactive ${course.courseType} lesson from these study notes:\n\nTitle: ${note.title}\n${note.subject ? `Subject: ${note.subject}\n` : ""}\n${note.content}`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-5.4",
-      max_completion_tokens: 8192,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage }
-      ],
-      response_format: { type: "json_object" },
-    });
+      const groundingChunks = await retrieveRelevantChunks(
+        note.id,
+        note.content.slice(0, 2000),
+        8,
+      );
+      const groundingBlock = formatGroundingContext(groundingChunks);
+      const groundedSystemPrompt = groundingBlock
+        ? `${systemPrompt}\n\nIMPORTANT: Stay faithful to the learner's source material. Do not introduce facts not supported by the notes or retrieved source excerpts below.${groundingBlock}`
+        : systemPrompt;
 
-    const rawContent = response.choices[0]?.message?.content || "{}";
-    const parsed = JSON.parse(rawContent) as {
-      title?: string;
-      description?: string;
-      estimatedMinutes?: number;
-      concepts?: Array<{ name?: string; description?: string; importance?: number }>;
-      edges?: Array<{ prerequisite?: string; dependent?: string }>;
-      steps?: Array<{
-        position: number;
-        stepType?: string;
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.4",
+        max_completion_tokens: 8192,
+        messages: [
+          { role: "system", content: groundedSystemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        response_format: { type: "json_object" },
+      });
+
+      const rawContent = response.choices[0]?.message?.content || "{}";
+      const parsed = JSON.parse(rawContent) as {
         title?: string;
-        content?: string;
-        concepts?: string[];
-        questionData?: unknown;
-        codeData?: unknown;
-        xpReward?: number;
-        isRequired?: boolean;
-      }>;
-    };
+        description?: string;
+        estimatedMinutes?: number;
+        concepts?: Array<{
+          name?: string;
+          description?: string;
+          importance?: number;
+        }>;
+        edges?: Array<{ prerequisite?: string; dependent?: string }>;
+        steps?: Array<{
+          position: number;
+          stepType?: string;
+          title?: string;
+          content?: string;
+          concepts?: string[];
+          questionData?: unknown;
+          codeData?: unknown;
+          xpReward?: number;
+          isRequired?: boolean;
+        }>;
+      };
 
-    const steps = parsed.steps || [];
+      const steps = parsed.steps || [];
 
-    // ─── Persist the concept graph ────────────────────────────────────────────
-    // Idempotent: wipe any prior concepts for this course (cascades to edges,
-    // step tags, mastery + review state) so (re)generation starts clean.
-    await db.delete(conceptsTable).where(eq(conceptsTable.courseId, id));
+      // ─── Persist the concept graph ────────────────────────────────────────────
+      // Idempotent: wipe any prior concepts for this course (cascades to edges,
+      // step tags, mastery + review state) so (re)generation starts clean.
+      await db.delete(conceptsTable).where(eq(conceptsTable.courseId, id));
 
-    // Case-insensitive name -> id lookup so step tags / edge endpoints resolve
-    // even when the model varies capitalisation or whitespace.
-    const conceptIdByName = new Map<string, number>();
-    for (const c of parsed.concepts || []) {
-      const name = (c.name || "").trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      if (conceptIdByName.has(key)) continue;
-      const importance = Math.min(3, Math.max(1, Number(c.importance) || 1));
-      const [row] = await db
-        .insert(conceptsTable)
-        .values({
-          courseId: id,
-          userId: req.userId!,
-          title: name,
-          description: c.description?.trim() || null,
-          importance,
-        })
-        .returning();
-      if (row) conceptIdByName.set(key, row.id);
-    }
-
-    // Prerequisite edges (skip self-loops, unknown endpoints, and duplicates).
-    const seenEdges = new Set<string>();
-    for (const e of parsed.edges || []) {
-      const pre = conceptIdByName.get((e.prerequisite || "").trim().toLowerCase());
-      const dep = conceptIdByName.get((e.dependent || "").trim().toLowerCase());
-      if (!pre || !dep || pre === dep) continue;
-      const ek = `${pre}->${dep}`;
-      if (seenEdges.has(ek)) continue;
-      seenEdges.add(ek);
-      await db
-        .insert(conceptEdgesTable)
-        .values({ courseId: id, prerequisiteConceptId: pre, dependentConceptId: dep })
-        .onConflictDoNothing();
-    }
-
-    res.write(`data: ${JSON.stringify({ status: "concepts_extracted", count: conceptIdByName.size })}\n\n`);
-
-    for (const step of steps) {
-      const [inserted] = await db
-        .insert(lessonStepsTable)
-        .values({
-          courseId: id,
-          position: step.position,
-          stepType: step.stepType || "content",
-          title: step.title || null,
-          content: step.content || "",
-          questionData: step.questionData || null,
-          codeData: step.codeData || null,
-          xpReward: step.xpReward || 10,
-          isRequired: step.isRequired !== false ? 1 : 0,
-        })
-        .returning();
-
-      // Tag the step with the concept(s) it assesses, so first attempts can
-      // update per-concept mastery.
-      if (inserted && Array.isArray(step.concepts)) {
-        const tagged = new Set<number>();
-        for (const cname of step.concepts) {
-          const cid = conceptIdByName.get((cname || "").trim().toLowerCase());
-          if (!cid || tagged.has(cid)) continue;
-          tagged.add(cid);
-          await db
-            .insert(lessonStepConceptsTable)
-            .values({ stepId: inserted.id, conceptId: cid })
-            .onConflictDoNothing();
-        }
+      // Case-insensitive name -> id lookup so step tags / edge endpoints resolve
+      // even when the model varies capitalisation or whitespace.
+      const conceptIdByName = new Map<string, number>();
+      for (const c of parsed.concepts || []) {
+        const name = (c.name || "").trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (conceptIdByName.has(key)) continue;
+        const importance = Math.min(3, Math.max(1, Number(c.importance) || 1));
+        const [row] = await db
+          .insert(conceptsTable)
+          .values({
+            courseId: id,
+            userId: req.userId!,
+            title: name,
+            description: c.description?.trim() || null,
+            importance,
+          })
+          .returning();
+        if (row) conceptIdByName.set(key, row.id);
       }
-      res.write(`data: ${JSON.stringify({ status: "step_added", stepPosition: step.position })}\n\n`);
+
+      // Prerequisite edges (skip self-loops, unknown endpoints, and duplicates).
+      const seenEdges = new Set<string>();
+      for (const e of parsed.edges || []) {
+        const pre = conceptIdByName.get(
+          (e.prerequisite || "").trim().toLowerCase(),
+        );
+        const dep = conceptIdByName.get(
+          (e.dependent || "").trim().toLowerCase(),
+        );
+        if (!pre || !dep || pre === dep) continue;
+        const ek = `${pre}->${dep}`;
+        if (seenEdges.has(ek)) continue;
+        seenEdges.add(ek);
+        await db
+          .insert(conceptEdgesTable)
+          .values({
+            courseId: id,
+            prerequisiteConceptId: pre,
+            dependentConceptId: dep,
+          })
+          .onConflictDoNothing();
+      }
+
+      res.write(
+        `data: ${JSON.stringify({ status: "concepts_extracted", count: conceptIdByName.size })}\n\n`,
+      );
+
+      for (const step of steps) {
+        const [inserted] = await db
+          .insert(lessonStepsTable)
+          .values({
+            courseId: id,
+            position: step.position,
+            stepType: step.stepType || "content",
+            title: step.title || null,
+            content: step.content || "",
+            questionData: step.questionData || null,
+            codeData: step.codeData || null,
+            xpReward: step.xpReward || 10,
+            isRequired: step.isRequired !== false ? 1 : 0,
+          })
+          .returning();
+
+        // Tag the step with the concept(s) it assesses, so first attempts can
+        // update per-concept mastery.
+        if (inserted && Array.isArray(step.concepts)) {
+          const tagged = new Set<number>();
+          for (const cname of step.concepts) {
+            const cid = conceptIdByName.get((cname || "").trim().toLowerCase());
+            if (!cid || tagged.has(cid)) continue;
+            tagged.add(cid);
+            await db
+              .insert(lessonStepConceptsTable)
+              .values({ stepId: inserted.id, conceptId: cid })
+              .onConflictDoNothing();
+          }
+        }
+        res.write(
+          `data: ${JSON.stringify({ status: "step_added", stepPosition: step.position })}\n\n`,
+        );
+      }
+
+      await db
+        .update(coursesTable)
+        .set({
+          status: "ready",
+          totalSteps: steps.length,
+          estimatedMinutes: parsed.estimatedMinutes || 15,
+          title: parsed.title || course.title,
+          description: parsed.description || course.description,
+        })
+        .where(eq(coursesTable.id, id));
+
+      res.write(
+        `data: ${JSON.stringify({ status: "complete", totalSteps: steps.length })}\n\n`,
+      );
+      res.end();
+    } catch (err) {
+      req.log.error({ err }, "Failed to generate course steps");
+      try {
+        await db
+          .update(coursesTable)
+          .set({ status: "error" })
+          .where(eq(coursesTable.id, id));
+      } catch (_) {
+        /* ignore */
+      }
+      res.write(`data: ${JSON.stringify({ error: "Generation failed" })}\n\n`);
+      res.end();
     }
+  },
+);
 
-    await db
-      .update(coursesTable)
-      .set({
-        status: "ready",
-        totalSteps: steps.length,
-        estimatedMinutes: parsed.estimatedMinutes || 15,
-        title: parsed.title || course.title,
-        description: parsed.description || course.description,
-      })
-      .where(eq(coursesTable.id, id));
-
-    res.write(`data: ${JSON.stringify({ status: "complete", totalSteps: steps.length })}\n\n`);
-    res.end();
-  } catch (err) {
-    req.log.error({ err }, "Failed to generate course steps");
+router.post(
+  "/courses/:id/regenerate",
+  requireAuth,
+  async (req: AuthRequest, res) => {
     try {
-      await db.update(coursesTable).set({ status: "error" }).where(eq(coursesTable.id, id));
-    } catch (_) { /* ignore */ }
-    res.write(`data: ${JSON.stringify({ error: "Generation failed" })}\n\n`);
-    res.end();
-  }
-});
+      const id = Number.parseInt(req.params.id as string);
+      const { difficulty, quizFrequency, courseType, additionalInstructions } =
+        req.body as Record<string, string>;
 
-router.post("/courses/:id/regenerate", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const id = parseInt(req.params["id"] as string);
-    const { difficulty, quizFrequency, courseType, additionalInstructions } = req.body as Record<string, string>;
+      const [course] = await db
+        .select()
+        .from(coursesTable)
+        .where(
+          and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)),
+        );
+      if (!course) {
+        res.status(404).json({ error: "Course not found" });
+        return;
+      }
 
-    const [course] = await db
-      .select()
-      .from(coursesTable)
-      .where(and(eq(coursesTable.id, id), eq(coursesTable.userId, req.userId!)));
-    if (!course) { res.status(404).json({ error: "Course not found" }); return; }
+      await db
+        .delete(lessonStepsTable)
+        .where(eq(lessonStepsTable.courseId, id));
 
-    await db.delete(lessonStepsTable).where(eq(lessonStepsTable.courseId, id));
+      const updates: Record<string, unknown> = {
+        status: "generating",
+        totalSteps: 0,
+      };
+      if (difficulty) updates.difficulty = difficulty;
+      if (quizFrequency) updates.quizFrequency = quizFrequency;
+      if (courseType) updates.courseType = courseType;
+      if (additionalInstructions)
+        updates.additionalInstructions = additionalInstructions;
 
-    const updates: Record<string, unknown> = { status: "generating", totalSteps: 0 };
-    if (difficulty) updates.difficulty = difficulty;
-    if (quizFrequency) updates.quizFrequency = quizFrequency;
-    if (courseType) updates.courseType = courseType;
-    if (additionalInstructions) updates.additionalInstructions = additionalInstructions;
+      const [updated] = await db
+        .update(coursesTable)
+        .set(updates)
+        .where(eq(coursesTable.id, id))
+        .returning();
 
-    const [updated] = await db
-      .update(coursesTable)
-      .set(updates)
-      .where(eq(coursesTable.id, id))
-      .returning();
-
-    res.json(updated);
-  } catch (err) {
-    req.log.error({ err }, "Failed to regenerate course");
-    res.status(500).json({ error: "Failed to regenerate course" });
-  }
-});
-
-router.get("/courses/:courseId/steps", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const courseId = parseInt(req.params["courseId"] as string);
-    const steps = await db
-      .select()
-      .from(lessonStepsTable)
-      .where(eq(lessonStepsTable.courseId, courseId))
-      .orderBy(lessonStepsTable.position);
-    res.json(steps);
-  } catch (err) {
-    req.log.error({ err }, "Failed to list steps");
-    res.status(500).json({ error: "Failed to list steps" });
-  }
-});
-
-router.get("/courses/:courseId/concepts", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const courseId = parseInt(req.params["courseId"] as string);
-    const [course] = await db.select().from(coursesTable).where(eq(coursesTable.id, courseId));
-    if (!course || course.userId !== req.userId!) {
-      res.status(404).json({ error: "Course not found" });
-      return;
+      res.json(updated);
+    } catch (err) {
+      req.log.error({ err }, "Failed to regenerate course");
+      res.status(500).json({ error: "Failed to regenerate course" });
     }
+  },
+);
 
-    const rows = await db
-      .select({
-        id: conceptsTable.id,
-        courseId: conceptsTable.courseId,
-        title: conceptsTable.title,
-        description: conceptsTable.description,
-        importance: conceptsTable.importance,
-        mastery: masteryRecordsTable.mastery,
-        confidence: masteryRecordsTable.confidence,
-        firstAttempts: masteryRecordsTable.firstAttempts,
-      })
-      .from(conceptsTable)
-      .leftJoin(
-        masteryRecordsTable,
-        and(
-          eq(masteryRecordsTable.conceptId, conceptsTable.id),
-          eq(masteryRecordsTable.userId, req.userId!),
-        ),
-      )
-      .where(eq(conceptsTable.courseId, courseId));
-
-    const bandOf = (m: number) =>
-      m >= 0.8 ? "strong" : m >= 0.6 ? "proficient" : m >= 0.4 ? "developing" : "weak";
-
-    const concepts = rows
-      .map((r) => {
-        const hasEvidence = (r.firstAttempts ?? 0) > 0;
-        return {
-          id: r.id,
-          courseId: r.courseId,
-          title: r.title,
-          description: r.description,
-          importance: r.importance ?? 1,
-          mastery: hasEvidence ? Math.round((r.mastery ?? 0) * 100) : null,
-          confidence: hasEvidence ? Math.round((r.confidence ?? 0) * 100) : null,
-          band: hasEvidence ? bandOf(r.mastery ?? 0) : null,
-          attempts: r.firstAttempts ?? 0,
-        };
-      })
-      .sort((a, b) => (a.mastery ?? 101) - (b.mastery ?? 101));
-
-    const edges = await db
-      .select({
-        prerequisiteConceptId: conceptEdgesTable.prerequisiteConceptId,
-        dependentConceptId: conceptEdgesTable.dependentConceptId,
-      })
-      .from(conceptEdgesTable)
-      .where(eq(conceptEdgesTable.courseId, courseId));
-
-    res.json({ concepts, edges });
-  } catch (err) {
-    req.log.error({ err }, "Failed to list concepts");
-    res.status(500).json({ error: "Failed to list concepts" });
-  }
-});
-
-router.get("/courses/:courseId/steps/:stepId", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const stepId = parseInt(req.params["stepId"] as string);
-    const [step] = await db
-      .select()
-      .from(lessonStepsTable)
-      .where(eq(lessonStepsTable.id, stepId));
-    if (!step) { res.status(404).json({ error: "Step not found" }); return; }
-    res.json(step);
-  } catch (err) {
-    req.log.error({ err }, "Failed to get step");
-    res.status(500).json({ error: "Failed to get step" });
-  }
-});
-
-router.post("/courses/:courseId/steps/:stepId/hint", requireAuth, async (req: AuthRequest, res) => {
-  const stepId = parseInt(req.params["stepId"] as string);
-
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  try {
-    const [step] = await db.select().from(lessonStepsTable).where(eq(lessonStepsTable.id, stepId));
-    if (!step) { res.write(`data: ${JSON.stringify({ error: "Step not found" })}\n\n`); res.end(); return; }
-
-    const questionInfo = step.questionData ? `\nQuestion: ${JSON.stringify(step.questionData)}` : "";
-    const stream = await openai.chat.completions.create({
-      model: "gpt-5.4",
-      max_completion_tokens: 512,
-      messages: [
-        { role: "system", content: "You are a helpful AI tutor. Give a gentle hint that guides the learner toward the answer without giving it away directly. Keep it concise (2-3 sentences max). Use the Socratic method." },
-        { role: "user", content: `Give me a hint for this lesson step:\n${step.content}${questionInfo}` }
-      ],
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+router.get(
+  "/courses/:courseId/steps",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const courseId = Number.parseInt(req.params.courseId as string);
+      const steps = await db
+        .select()
+        .from(lessonStepsTable)
+        .where(eq(lessonStepsTable.courseId, courseId))
+        .orderBy(lessonStepsTable.position);
+      res.json(steps);
+    } catch (err) {
+      req.log.error({ err }, "Failed to list steps");
+      res.status(500).json({ error: "Failed to list steps" });
     }
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-  } catch (err) {
-    req.log.error({ err }, "Hint generation failed");
-    res.write(`data: ${JSON.stringify({ error: "Failed to generate hint" })}\n\n`);
-    res.end();
-  }
-});
+  },
+);
 
-router.post("/courses/:courseId/steps/:stepId/explain", requireAuth, async (req: AuthRequest, res) => {
-  const stepId = parseInt(req.params["stepId"] as string);
+router.get(
+  "/courses/:courseId/concepts",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const courseId = Number.parseInt(req.params.courseId as string);
+      const [course] = await db
+        .select()
+        .from(coursesTable)
+        .where(eq(coursesTable.id, courseId));
+      if (!course || course.userId !== req.userId!) {
+        res.status(404).json({ error: "Course not found" });
+        return;
+      }
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+      const rows = await db
+        .select({
+          id: conceptsTable.id,
+          courseId: conceptsTable.courseId,
+          title: conceptsTable.title,
+          description: conceptsTable.description,
+          importance: conceptsTable.importance,
+          mastery: masteryRecordsTable.mastery,
+          confidence: masteryRecordsTable.confidence,
+          firstAttempts: masteryRecordsTable.firstAttempts,
+        })
+        .from(conceptsTable)
+        .leftJoin(
+          masteryRecordsTable,
+          and(
+            eq(masteryRecordsTable.conceptId, conceptsTable.id),
+            eq(masteryRecordsTable.userId, req.userId!),
+          ),
+        )
+        .where(eq(conceptsTable.courseId, courseId));
 
-  try {
-    const [step] = await db.select().from(lessonStepsTable).where(eq(lessonStepsTable.id, stepId));
-    if (!step) { res.write(`data: ${JSON.stringify({ error: "Step not found" })}\n\n`); res.end(); return; }
+      const bandOf = (m: number) =>
+        m >= 0.8
+          ? "strong"
+          : m >= 0.6
+            ? "proficient"
+            : m >= 0.4
+              ? "developing"
+              : "weak";
 
-    const stream = await openai.chat.completions.create({
-      model: "gpt-5.4",
-      max_completion_tokens: 1024,
-      messages: [
-        { role: "system", content: "You are an expert AI tutor. Provide a deep, clear, and engaging explanation of the concept. Use analogies, examples, and real-world applications. Be encouraging and thorough." },
-        { role: "user", content: `Please explain this concept in more depth:\n\n${step.content}` }
-      ],
-      stream: true,
-    });
+      const concepts = rows
+        .map((r) => {
+          const hasEvidence = (r.firstAttempts ?? 0) > 0;
+          return {
+            id: r.id,
+            courseId: r.courseId,
+            title: r.title,
+            description: r.description,
+            importance: r.importance ?? 1,
+            mastery: hasEvidence ? Math.round((r.mastery ?? 0) * 100) : null,
+            confidence: hasEvidence
+              ? Math.round((r.confidence ?? 0) * 100)
+              : null,
+            band: hasEvidence ? bandOf(r.mastery ?? 0) : null,
+            attempts: r.firstAttempts ?? 0,
+          };
+        })
+        .sort((a, b) => (a.mastery ?? 101) - (b.mastery ?? 101));
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      const edges = await db
+        .select({
+          prerequisiteConceptId: conceptEdgesTable.prerequisiteConceptId,
+          dependentConceptId: conceptEdgesTable.dependentConceptId,
+        })
+        .from(conceptEdgesTable)
+        .where(eq(conceptEdgesTable.courseId, courseId));
+
+      res.json({ concepts, edges });
+    } catch (err) {
+      req.log.error({ err }, "Failed to list concepts");
+      res.status(500).json({ error: "Failed to list concepts" });
     }
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-  } catch (err) {
-    req.log.error({ err }, "Explanation generation failed");
-    res.write(`data: ${JSON.stringify({ error: "Failed to generate explanation" })}\n\n`);
-    res.end();
-  }
-});
+  },
+);
+
+router.get(
+  "/courses/:courseId/steps/:stepId",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const stepId = Number.parseInt(req.params.stepId as string);
+      const [step] = await db
+        .select()
+        .from(lessonStepsTable)
+        .where(eq(lessonStepsTable.id, stepId));
+      if (!step) {
+        res.status(404).json({ error: "Step not found" });
+        return;
+      }
+      res.json(step);
+    } catch (err) {
+      req.log.error({ err }, "Failed to get step");
+      res.status(500).json({ error: "Failed to get step" });
+    }
+  },
+);
+
+router.post(
+  "/courses/:courseId/steps/:stepId/hint",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    const stepId = Number.parseInt(req.params.stepId as string);
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    try {
+      const [step] = await db
+        .select()
+        .from(lessonStepsTable)
+        .where(eq(lessonStepsTable.id, stepId));
+      if (!step) {
+        res.write(`data: ${JSON.stringify({ error: "Step not found" })}\n\n`);
+        res.end();
+        return;
+      }
+
+      const questionInfo = step.questionData
+        ? `\nQuestion: ${JSON.stringify(step.questionData)}`
+        : "";
+      const stream = await openai.chat.completions.create({
+        model: "gpt-5.4",
+        max_completion_tokens: 512,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful AI tutor. Give a gentle hint that guides the learner toward the answer without giving it away directly. Keep it concise (2-3 sentences max). Use the Socratic method.",
+          },
+          {
+            role: "user",
+            content: `Give me a hint for this lesson step:\n${step.content}${questionInfo}`,
+          },
+        ],
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (err) {
+      req.log.error({ err }, "Hint generation failed");
+      res.write(
+        `data: ${JSON.stringify({ error: "Failed to generate hint" })}\n\n`,
+      );
+      res.end();
+    }
+  },
+);
+
+router.post(
+  "/courses/:courseId/steps/:stepId/explain",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    const stepId = Number.parseInt(req.params.stepId as string);
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    try {
+      const [step] = await db
+        .select()
+        .from(lessonStepsTable)
+        .where(eq(lessonStepsTable.id, stepId));
+      if (!step) {
+        res.write(`data: ${JSON.stringify({ error: "Step not found" })}\n\n`);
+        res.end();
+        return;
+      }
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-5.4",
+        max_completion_tokens: 1024,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an expert AI tutor. Provide a deep, clear, and engaging explanation of the concept. Use analogies, examples, and real-world applications. Be encouraging and thorough.",
+          },
+          {
+            role: "user",
+            content: `Please explain this concept in more depth:\n\n${step.content}`,
+          },
+        ],
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (err) {
+      req.log.error({ err }, "Explanation generation failed");
+      res.write(
+        `data: ${JSON.stringify({ error: "Failed to generate explanation" })}\n\n`,
+      );
+      res.end();
+    }
+  },
+);
 
 export default router;

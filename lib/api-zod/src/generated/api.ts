@@ -25,6 +25,9 @@ export const ListNotesResponseItem = zod.object({
   "title": zod.string(),
   "content": zod.string(),
   "subject": zod.string().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "mimeType": zod.string().nullish(),
+  "sourceType": zod.enum(['text', 'pdf', 'image']).optional(),
   "wordCount": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -48,6 +51,23 @@ export const CreateNoteBody = zod.object({
 
 
 /**
+ * @summary Upload a PDF, image, or text file as study material
+ */
+
+
+
+
+
+export const UploadNoteBody = zod.object({
+  "title": zod.string().min(1),
+  "subject": zod.string().optional(),
+  "fileName": zod.string().min(1),
+  "mimeType": zod.string().optional(),
+  "fileBase64": zod.string().min(1)
+})
+
+
+/**
  * @summary Get a specific note
  */
 export const GetNoteParams = zod.object({
@@ -59,6 +79,9 @@ export const GetNoteResponse = zod.object({
   "title": zod.string(),
   "content": zod.string(),
   "subject": zod.string().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "mimeType": zod.string().nullish(),
+  "sourceType": zod.enum(['text', 'pdf', 'image']).optional(),
   "wordCount": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -371,6 +394,12 @@ export const GetProfileResponse = zod.object({
   "masteryLevel": zod.string().nullish().describe('Coarse mastery band — developing | proficient | strong'),
   "readinessConfidence": zod.number().nullish().describe('0-1 confidence in the readiness estimate'),
   "learnerModelNotes": zod.string().nullish(),
+  "examDate": zod.coerce.date().nullish(),
+  "dailyStudyMinutes": zod.number().optional(),
+  "preferredLanguage": zod.enum(['en', 'el']).optional(),
+  "agentMode": zod.enum(['socratic', 'direct', 'beginner', 'exam_coach', 'deep_theory', 'practical', 'error_diagnosis', 'feynman', 'math', 'memory_coach']).optional(),
+  "strictSourceMode": zod.boolean().optional(),
+  "socraticMode": zod.boolean().optional(),
   "lastActiveAt": zod.coerce.date().nullish()
 })
 
@@ -385,7 +414,13 @@ export const UpdateProfileBody = zod.object({
   "preferredCourseType": zod.enum(['theoretical', 'practical', 'mixed', 'adaptive']).optional(),
   "preferredDifficulty": zod.enum(['beginner', 'intermediate', 'advanced', 'adaptive']).optional(),
   "showExplanationsAfterCorrect": zod.boolean().optional(),
-  "enableHints": zod.boolean().optional()
+  "enableHints": zod.boolean().optional(),
+  "examDate": zod.coerce.date().nullish(),
+  "dailyStudyMinutes": zod.number().optional(),
+  "preferredLanguage": zod.enum(['en', 'el']).optional(),
+  "agentMode": zod.enum(['socratic', 'direct', 'beginner', 'exam_coach', 'deep_theory', 'practical', 'error_diagnosis', 'feynman', 'math', 'memory_coach']).optional(),
+  "strictSourceMode": zod.boolean().optional(),
+  "socraticMode": zod.boolean().optional()
 })
 
 export const UpdateProfileResponse = zod.object({
@@ -405,6 +440,12 @@ export const UpdateProfileResponse = zod.object({
   "masteryLevel": zod.string().nullish().describe('Coarse mastery band — developing | proficient | strong'),
   "readinessConfidence": zod.number().nullish().describe('0-1 confidence in the readiness estimate'),
   "learnerModelNotes": zod.string().nullish(),
+  "examDate": zod.coerce.date().nullish(),
+  "dailyStudyMinutes": zod.number().optional(),
+  "preferredLanguage": zod.enum(['en', 'el']).optional(),
+  "agentMode": zod.enum(['socratic', 'direct', 'beginner', 'exam_coach', 'deep_theory', 'practical', 'error_diagnosis', 'feynman', 'math', 'memory_coach']).optional(),
+  "strictSourceMode": zod.boolean().optional(),
+  "socraticMode": zod.boolean().optional(),
   "lastActiveAt": zod.coerce.date().nullish()
 })
 
@@ -502,10 +543,162 @@ export const GetLearnerModelResponse = zod.object({
 
 
 /**
+ * @summary Today's due reviews and open mistakes
+ */
+export const GetTasksResponse = zod.object({
+  "overdueCount": zod.number(),
+  "reviews": zod.array(zod.object({
+  "conceptId": zod.number(),
+  "courseId": zod.number(),
+  "conceptTitle": zod.string(),
+  "conceptDescription": zod.string().nullish(),
+  "courseTitle": zod.string().nullish(),
+  "dueAt": zod.coerce.date(),
+  "stabilityDays": zod.number(),
+  "difficulty": zod.number(),
+  "reviewCount": zod.number(),
+  "retrievability": zod.number(),
+  "mastery": zod.number().nullish(),
+  "isOverdue": zod.boolean()
+})),
+  "mistakes": zod.array(zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "stepId": zod.number(),
+  "conceptId": zod.number().nullish(),
+  "stepTitle": zod.string().nullish(),
+  "stepType": zod.string().nullish(),
+  "courseTitle": zod.string().nullish(),
+  "conceptTitle": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Count of overdue reviews and open mistakes (for nav badge)
+ */
+export const GetTaskCountResponse = zod.object({
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Submit a spaced-repetition recall rating for a concept
+ */
+export const SubmitConceptReviewParams = zod.object({
+  "conceptId": zod.coerce.number()
+})
+
+export const SubmitConceptReviewBody = zod.object({
+  "rating": zod.enum(['again', 'hard', 'good', 'easy'])
+})
+
+export const SubmitConceptReviewResponse = zod.object({
+  "conceptId": zod.number(),
+  "rating": zod.string(),
+  "dueAt": zod.coerce.date(),
+  "stabilityDays": zod.number()
+})
+
+
+/**
+ * @summary Exam-date-driven daily study plan
+ */
+export const GetStudyPlanResponse = zod.object({
+  "dailyMinutes": zod.number(),
+  "daysUntilExam": zod.number().nullish(),
+  "cramMode": zod.boolean(),
+  "examDate": zod.coerce.date().nullish(),
+  "blocks": zod.array(zod.object({
+  "type": zod.string(),
+  "title": zod.string(),
+  "minutes": zod.number(),
+  "priority": zod.number(),
+  "href": zod.string().nullish()
+})),
+  "totalMinutes": zod.number(),
+  "summary": zod.string(),
+  "weakConcepts": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+/**
+ * @summary Error notebook — all mistakes with explanations
+ */
+export const GetErrorNotebookResponse = zod.object({
+  "open": zod.array(zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "stepId": zod.number(),
+  "conceptId": zod.number().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "stepTitle": zod.string().nullish(),
+  "stepType": zod.string().nullish(),
+  "courseTitle": zod.string().nullish(),
+  "conceptTitle": zod.string().nullish(),
+  "question": zod.string().nullish(),
+  "explanation": zod.string().nullish(),
+  "lastConfidence": zod.number().nullish()
+})),
+  "resolved": zod.array(zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "stepId": zod.number(),
+  "conceptId": zod.number().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "stepTitle": zod.string().nullish(),
+  "stepType": zod.string().nullish(),
+  "courseTitle": zod.string().nullish(),
+  "conceptTitle": zod.string().nullish(),
+  "question": zod.string().nullish(),
+  "explanation": zod.string().nullish(),
+  "lastConfidence": zod.number().nullish()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Generate a timed exam simulation from weak concepts
+ */
+export const getExamMockQueryCountDefault = 10;
+export const getExamMockQueryDurationMinutesDefault = 25;
+
+export const GetExamMockQueryParams = zod.object({
+  "count": zod.coerce.number().default(getExamMockQueryCountDefault),
+  "courseId": zod.coerce.number().optional(),
+  "durationMinutes": zod.coerce.number().default(getExamMockQueryDurationMinutesDefault)
+})
+
+export const GetExamMockResponse = zod.object({
+  "durationMinutes": zod.number(),
+  "questionCount": zod.number(),
+  "startedAt": zod.coerce.date(),
+  "questions": zod.array(zod.object({
+  "index": zod.number(),
+  "stepId": zod.number(),
+  "courseId": zod.number(),
+  "courseTitle": zod.string().nullish(),
+  "title": zod.string().nullish(),
+  "question": zod.string(),
+  "type": zod.string(),
+  "choices": zod.array(zod.string()).nullish()
+}))
+})
+
+
+/**
  * @summary List all AI tutor conversations
  */
 export const ListOpenaiConversationsResponseItem = zod.object({
   "id": zod.number(),
+  "userId": zod.string(),
+  "courseId": zod.number().nullish(),
   "title": zod.string(),
   "createdAt": zod.coerce.date()
 })
@@ -576,7 +769,8 @@ export const SendOpenaiMessageParams = zod.object({
 })
 
 export const SendOpenaiMessageBody = zod.object({
-  "content": zod.string()
+  "content": zod.string(),
+  "mode": zod.enum(['socratic', 'direct', 'beginner', 'exam_coach', 'deep_theory', 'practical', 'error_diagnosis', 'feynman', 'math', 'memory_coach']).optional()
 })
 
 

@@ -1,12 +1,21 @@
-import { pgTable, serial, text, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import {
+  integer,
+  jsonb,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
 import { notesTable } from "./notes";
 
 export const coursesTable = pgTable("courses", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
-  noteId: integer("note_id").notNull().references(() => notesTable.id, { onDelete: "cascade" }),
+  noteId: integer("note_id")
+    .notNull()
+    .references(() => notesTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   subject: text("subject"),
@@ -20,13 +29,18 @@ export const coursesTable = pgTable("courses", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertCourseSchema = createInsertSchema(coursesTable).omit({ id: true, createdAt: true });
+export const insertCourseSchema = createInsertSchema(coursesTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertCourse = z.infer<typeof insertCourseSchema>;
 export type Course = typeof coursesTable.$inferSelect;
 
 export const lessonStepsTable = pgTable("lesson_steps", {
   id: serial("id").primaryKey(),
-  courseId: integer("course_id").notNull().references(() => coursesTable.id, { onDelete: "cascade" }),
+  courseId: integer("course_id")
+    .notNull()
+    .references(() => coursesTable.id, { onDelete: "cascade" }),
   position: integer("position").notNull(),
   stepType: text("step_type").notNull().default("content"),
   title: text("title"),
@@ -38,6 +52,8 @@ export const lessonStepsTable = pgTable("lesson_steps", {
   isRequired: integer("is_required").notNull().default(1),
 });
 
-export const insertLessonStepSchema = createInsertSchema(lessonStepsTable).omit({ id: true });
+export const insertLessonStepSchema = createInsertSchema(lessonStepsTable).omit(
+  { id: true },
+);
 export type InsertLessonStep = z.infer<typeof insertLessonStepSchema>;
 export type LessonStep = typeof lessonStepsTable.$inferSelect;

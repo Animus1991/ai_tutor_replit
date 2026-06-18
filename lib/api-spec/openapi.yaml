@@ -20,6 +20,8 @@ tags:
     description: User learning profile and adaptive settings
   - name: dashboard
     description: Dashboard stats and summaries
+  - name: tasks
+    description: Daily review queue and mistake retries
   - name: openai
     description: OpenAI AI chat and lesson generation operations
 paths:
@@ -65,6 +67,25 @@ paths:
       responses:
         "201":
           description: Created note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+
+  /notes/upload:
+    post:
+      operationId: uploadNote
+      tags: [notes]
+      summary: Upload a PDF, image, or text file as study material
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteUploadInput"
+      responses:
+        "201":
+          description: Created note from uploaded file
           content:
             application/json:
               schema:
@@ -464,6 +485,124 @@ paths:
               schema:
                 $ref: "#/components/schemas/LearnerModel"
 
+  # ─── TASKS (Phase 2) ───────────────────────────────────────────────────────────
+  /tasks:
+    get:
+      operationId: getTasks
+      tags: [tasks]
+      summary: Today's due reviews and open mistakes
+      responses:
+        "200":
+          description: Task queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskQueue"
+
+  /tasks/count:
+    get:
+      operationId: getTaskCount
+      tags: [tasks]
+      summary: Count of overdue reviews and open mistakes (for nav badge)
+      responses:
+        "200":
+          description: Overdue task count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskCount"
+
+  /tasks/{conceptId}/review:
+    post:
+      operationId: submitConceptReview
+      tags: [tasks]
+      summary: Submit a spaced-repetition recall rating for a concept
+      parameters:
+        - name: conceptId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConceptReviewInput"
+      responses:
+        "200":
+          description: Updated review schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConceptReviewResult"
+        "404":
+          description: Concept or schedule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /study-plan:
+    get:
+      operationId: getStudyPlan
+      tags: [tasks]
+      summary: Exam-date-driven daily study plan
+      responses:
+        "200":
+          description: Today's adaptive study plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyPlan"
+
+  /mistakes/notebook:
+    get:
+      operationId: getErrorNotebook
+      tags: [tasks]
+      summary: Error notebook — all mistakes with explanations
+      responses:
+        "200":
+          description: Error notebook entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorNotebook"
+
+  /exam/mock:
+    get:
+      operationId: getExamMock
+      tags: [tasks]
+      summary: Generate a timed exam simulation from weak concepts
+      parameters:
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: courseId
+          in: query
+          schema:
+            type: integer
+        - name: durationMinutes
+          in: query
+          schema:
+            type: integer
+            default: 25
+      responses:
+        "200":
+          description: Exam mock session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamMock"
+        "404":
+          description: No courses available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   # ─── OPENAI ──────────────────────────────────────────────────────────────────
   /openai/conversations:
     get:
@@ -583,6 +722,31 @@ paths:
           content:
             text/event-stream: {}
 
+  /openai/feynman-check:
+    post:
+      operationId: postOpenaiFeynmanCheck
+      tags: [openai]
+      summary: Evaluate a Feynman-style explanation for clarity and gaps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeynmanCheckInput"
+      responses:
+        "200":
+          description: Score and improvement issues
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeynmanCheckOutput"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /openai/generate-image:
     post:
       operationId: generateOpenaiImage
@@ -632,6 +796,13 @@ components:
           type: string
         subject:
           type: ["string", "null"]
+        fileUrl:
+          type: ["string", "null"]
+        mimeType:
+          type: ["string", "null"]
+        sourceType:
+          type: string
+          enum: [text, pdf, image]
         wordCount:
           type: integer
         createdAt:
@@ -662,6 +833,27 @@ components:
       required:
         - title
         - content
+
+    NoteUploadInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        subject:
+          type: string
+        fileName:
+          type: string
+          minLength: 1
+        mimeType:
+          type: string
+        fileBase64:
+          type: string
+          minLength: 1
+      required:
+        - title
+        - fileName
+        - fileBase64
 
     # ─── COURSE ────────────────────────────────────────────────────────────────
     Course:
@@ -952,6 +1144,21 @@ components:
           description: 0-1 confidence in the readiness estimate
         learnerModelNotes:
           type: ["string", "null"]
+        examDate:
+          type: ["string", "null"]
+          format: date-time
+        dailyStudyMinutes:
+          type: integer
+        preferredLanguage:
+          type: string
+          enum: [en, el]
+        agentMode:
+          type: string
+          enum: [socratic, direct, beginner, exam_coach, deep_theory, practical, error_diagnosis, feynman, math, memory_coach]
+        strictSourceMode:
+          type: boolean
+        socraticMode:
+          type: boolean
         lastActiveAt:
           type: ["string", "null"]
           format: date-time
@@ -988,6 +1195,21 @@ components:
         showExplanationsAfterCorrect:
           type: boolean
         enableHints:
+          type: boolean
+        examDate:
+          type: ["string", "null"]
+          format: date-time
+        dailyStudyMinutes:
+          type: integer
+        preferredLanguage:
+          type: string
+          enum: [en, el]
+        agentMode:
+          type: string
+          enum: [socratic, direct, beginner, exam_coach, deep_theory, practical, error_diagnosis, feynman, math, memory_coach]
+        strictSourceMode:
+          type: boolean
+        socraticMode:
           type: boolean
 
     # ─── DASHBOARD ─────────────────────────────────────────────────────────────
@@ -1139,6 +1361,18 @@ components:
           description: Weak concepts whose prerequisite is also weak — fix the prerequisite first
           items:
             $ref: "#/components/schemas/PrerequisiteRepair"
+        misconceptions:
+          type: array
+          description: Detected misconceptions from open mistakes and overconfident errors
+          items:
+            $ref: "#/components/schemas/Misconception"
+        errorPatterns:
+          type: array
+          description: Aggregated error patterns from observed mistakes
+          items:
+            $ref: "#/components/schemas/ErrorPattern"
+        visualAnalytics:
+          $ref: "#/components/schemas/VisualAnalytics"
         dataPointsCollected:
           type: integer
         nextInsightAt:
@@ -1154,6 +1388,8 @@ components:
         - conceptMastery
         - readinessByCourse
         - prerequisiteRepairs
+        - misconceptions
+        - errorPatterns
         - dataPointsCollected
         - nextInsightAt
 
@@ -1264,10 +1500,65 @@ components:
           description: 0-100 concept-rollup readiness for the course
         conceptCount:
           type: integer
+        percentComplete:
+          type: integer
+          description: 0-100 lesson step completion for the course
       required:
         - courseId
         - readiness
         - conceptCount
+        - percentComplete
+
+    Misconception:
+      type: object
+      properties:
+        id:
+          type: string
+        concept:
+          type: string
+        description:
+          type: string
+        frequency:
+          type: integer
+        corrected:
+          type: boolean
+        suggestedFix:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+        courseTitle:
+          type: ["string", "null"]
+      required:
+        - id
+        - concept
+        - description
+        - frequency
+        - corrected
+        - suggestedFix
+        - detectedAt
+
+    ErrorPattern:
+      type: object
+      properties:
+        type:
+          type: string
+        frequency:
+          type: integer
+        concepts:
+          type: array
+          items:
+            type: string
+        suggestedRemedy:
+          type: string
+        category:
+          type: string
+      required:
+        - type
+        - frequency
+        - concepts
+        - suggestedRemedy
+        - category
 
     PrerequisiteRepair:
       type: object
@@ -1286,6 +1577,10 @@ components:
       properties:
         id:
           type: integer
+        userId:
+          type: string
+        courseId:
+          type: ["integer", "null"]
         title:
           type: string
         createdAt:
@@ -1293,6 +1588,7 @@ components:
           format: date-time
       required:
         - id
+        - userId
         - title
         - createdAt
 
@@ -1334,6 +1630,9 @@ components:
       properties:
         content:
           type: string
+        mode:
+          type: string
+          enum: [socratic, direct, beginner, exam_coach, deep_theory, practical, error_diagnosis, feynman, math, memory_coach]
       required:
         - content
 
@@ -1356,6 +1655,104 @@ components:
         - title
         - createdAt
         - messages
+
+    VisualAnalytics:
+      type: object
+      description: Evidence-based charts for analytics visuals derived from learner behavior
+      properties:
+        masteryHeatmap:
+          type: array
+          items:
+            type: object
+            properties:
+              concept:
+                type: string
+              day:
+                type: integer
+              value:
+                type: integer
+            required: [concept, day, value]
+        learningTimeline:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              day:
+                type: integer
+              label:
+                type: string
+              type:
+                type: string
+                enum: [lesson, quiz, review, error, mastery]
+              detail:
+                type: string
+              delta:
+                type: integer
+            required: [id, day, label, type, detail, delta]
+        skillRadar:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              value:
+                type: number
+              max:
+                type: number
+            required: [label, value, max]
+        pipelineFlow:
+          type: array
+          items:
+            type: object
+            properties:
+              from:
+                type: string
+              to:
+                type: string
+              value:
+                type: number
+              color:
+                type: string
+            required: [from, to, value, color]
+        hasRealData:
+          type: boolean
+      required:
+        - masteryHeatmap
+        - learningTimeline
+        - skillRadar
+        - pipelineFlow
+        - hasRealData
+
+    FeynmanCheckInput:
+      type: object
+      properties:
+        explanation:
+          type: string
+          minLength: 10
+        concept:
+          type: string
+      required:
+        - explanation
+
+    FeynmanCheckOutput:
+      type: object
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        issues:
+          type: array
+          items:
+            type: string
+        isDemo:
+          type: boolean
+      required:
+        - score
+        - issues
 
     OpenaiImageInput:
       type: object
@@ -1383,3 +1780,281 @@ components:
           type: string
       required:
         - error
+
+    TaskReview:
+      type: object
+      properties:
+        conceptId:
+          type: integer
+        courseId:
+          type: integer
+        conceptTitle:
+          type: string
+        conceptDescription:
+          type: ["string", "null"]
+        courseTitle:
+          type: ["string", "null"]
+        dueAt:
+          type: string
+          format: date-time
+        stabilityDays:
+          type: number
+        difficulty:
+          type: number
+        reviewCount:
+          type: integer
+        retrievability:
+          type: integer
+        mastery:
+          type: ["integer", "null"]
+        isOverdue:
+          type: boolean
+      required:
+        - conceptId
+        - courseId
+        - conceptTitle
+        - dueAt
+        - stabilityDays
+        - difficulty
+        - reviewCount
+        - retrievability
+        - isOverdue
+
+    TaskMistake:
+      type: object
+      properties:
+        id:
+          type: integer
+        courseId:
+          type: integer
+        stepId:
+          type: integer
+        conceptId:
+          type: ["integer", "null"]
+        stepTitle:
+          type: ["string", "null"]
+        stepType:
+          type: ["string", "null"]
+        courseTitle:
+          type: ["string", "null"]
+        conceptTitle:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - courseId
+        - stepId
+        - createdAt
+
+    TaskQueue:
+      type: object
+      properties:
+        overdueCount:
+          type: integer
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskReview"
+        mistakes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskMistake"
+      required:
+        - overdueCount
+        - reviews
+        - mistakes
+
+    TaskCount:
+      type: object
+      properties:
+        count:
+          type: integer
+      required:
+        - count
+
+    ConceptReviewInput:
+      type: object
+      properties:
+        rating:
+          type: string
+          enum: [again, hard, good, easy]
+      required:
+        - rating
+
+    ConceptReviewResult:
+      type: object
+      properties:
+        conceptId:
+          type: integer
+        rating:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        stabilityDays:
+          type: number
+      required:
+        - conceptId
+        - rating
+        - dueAt
+        - stabilityDays
+
+    StudyPlanBlock:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        minutes:
+          type: integer
+        priority:
+          type: integer
+        href:
+          type: ["string", "null"]
+      required:
+        - type
+        - title
+        - minutes
+        - priority
+
+    StudyPlan:
+      type: object
+      properties:
+        dailyMinutes:
+          type: integer
+        daysUntilExam:
+          type: ["integer", "null"]
+        cramMode:
+          type: boolean
+        examDate:
+          type: ["string", "null"]
+          format: date-time
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudyPlanBlock"
+        totalMinutes:
+          type: integer
+        summary:
+          type: string
+        weakConcepts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required:
+        - dailyMinutes
+        - cramMode
+        - blocks
+        - totalMinutes
+        - summary
+        - weakConcepts
+
+    ErrorNotebookEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        courseId:
+          type: integer
+        stepId:
+          type: integer
+        conceptId:
+          type: ["integer", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: ["string", "null"]
+          format: date-time
+        stepTitle:
+          type: ["string", "null"]
+        stepType:
+          type: ["string", "null"]
+        courseTitle:
+          type: ["string", "null"]
+        conceptTitle:
+          type: ["string", "null"]
+        question:
+          type: ["string", "null"]
+        explanation:
+          type: ["string", "null"]
+        lastConfidence:
+          type: ["integer", "null"]
+      required:
+        - id
+        - courseId
+        - stepId
+        - status
+        - createdAt
+
+    ErrorNotebook:
+      type: object
+      properties:
+        open:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorNotebookEntry"
+        resolved:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorNotebookEntry"
+        total:
+          type: integer
+      required:
+        - open
+        - resolved
+        - total
+
+    ExamMockQuestion:
+      type: object
+      properties:
+        index:
+          type: integer
+        stepId:
+          type: integer
+        courseId:
+          type: integer
+        courseTitle:
+          type: ["string", "null"]
+        title:
+          type: ["string", "null"]
+        question:
+          type: string
+        type:
+          type: string
+        choices:
+          type: ["array", "null"]
+          items:
+            type: string
+      required:
+        - index
+        - stepId
+        - courseId
+        - question
+        - type
+
+    ExamMock:
+      type: object
+      properties:
+        durationMinutes:
+          type: integer
+        questionCount:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExamMockQuestion"
+      required:
+        - durationMinutes
+        - questionCount
+        - startedAt
+        - questions

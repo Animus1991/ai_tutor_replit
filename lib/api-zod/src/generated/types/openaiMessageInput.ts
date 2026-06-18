@@ -5,7 +5,9 @@
  * LearnAI - AI-Powered Adaptive Learning Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { OpenaiMessageInputMode } from './openaiMessageInputMode';
 
 export interface OpenaiMessageInput {
   content: string;
+  mode?: OpenaiMessageInputMode;
 }

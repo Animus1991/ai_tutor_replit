@@ -19,9 +19,9 @@
  *   app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
  */
 
-import { createProxyMiddleware } from "http-proxy-middleware";
+import type { IncomingHttpHeaders } from "node:http";
 import type { RequestHandler } from "express";
-import type { IncomingHttpHeaders } from "http";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";

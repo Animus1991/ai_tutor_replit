@@ -13,12 +13,26 @@ export interface ApiError {
   error: string;
 }
 
+export type NoteSourceType = typeof NoteSourceType[keyof typeof NoteSourceType];
+
+
+export const NoteSourceType = {
+  text: 'text',
+  pdf: 'pdf',
+  image: 'image',
+} as const;
+
 export interface Note {
   id: number;
   title: string;
   content: string;
   /** @nullable */
   subject?: string | null;
+  /** @nullable */
+  fileUrl?: string | null;
+  /** @nullable */
+  mimeType?: string | null;
+  sourceType?: NoteSourceType;
   wordCount: number;
   createdAt: string;
   updatedAt: string;
@@ -30,6 +44,17 @@ export interface NoteInput {
   /** @minLength 10 */
   content: string;
   subject?: string;
+}
+
+export interface NoteUploadInput {
+  /** @minLength 1 */
+  title: string;
+  subject?: string;
+  /** @minLength 1 */
+  fileName: string;
+  mimeType?: string;
+  /** @minLength 1 */
+  fileBase64: string;
 }
 
 export type CourseCourseType = typeof CourseCourseType[keyof typeof CourseCourseType];
@@ -347,6 +372,30 @@ export const LearningProfilePreferredDifficulty = {
   adaptive: 'adaptive',
 } as const;
 
+export type LearningProfilePreferredLanguage = typeof LearningProfilePreferredLanguage[keyof typeof LearningProfilePreferredLanguage];
+
+
+export const LearningProfilePreferredLanguage = {
+  en: 'en',
+  el: 'el',
+} as const;
+
+export type LearningProfileAgentMode = typeof LearningProfileAgentMode[keyof typeof LearningProfileAgentMode];
+
+
+export const LearningProfileAgentMode = {
+  socratic: 'socratic',
+  direct: 'direct',
+  beginner: 'beginner',
+  exam_coach: 'exam_coach',
+  deep_theory: 'deep_theory',
+  practical: 'practical',
+  error_diagnosis: 'error_diagnosis',
+  feynman: 'feynman',
+  math: 'math',
+  memory_coach: 'memory_coach',
+} as const;
+
 export interface LearningProfile {
   userId: string;
   /** @nullable */
@@ -378,6 +427,13 @@ export interface LearningProfile {
   readinessConfidence?: number | null;
   /** @nullable */
   learnerModelNotes?: string | null;
+  /** @nullable */
+  examDate?: string | null;
+  dailyStudyMinutes?: number;
+  preferredLanguage?: LearningProfilePreferredLanguage;
+  agentMode?: LearningProfileAgentMode;
+  strictSourceMode?: boolean;
+  socraticMode?: boolean;
   /** @nullable */
   lastActiveAt?: string | null;
 }
@@ -422,6 +478,30 @@ export const LearningProfileUpdatePreferredDifficulty = {
   adaptive: 'adaptive',
 } as const;
 
+export type LearningProfileUpdatePreferredLanguage = typeof LearningProfileUpdatePreferredLanguage[keyof typeof LearningProfileUpdatePreferredLanguage];
+
+
+export const LearningProfileUpdatePreferredLanguage = {
+  en: 'en',
+  el: 'el',
+} as const;
+
+export type LearningProfileUpdateAgentMode = typeof LearningProfileUpdateAgentMode[keyof typeof LearningProfileUpdateAgentMode];
+
+
+export const LearningProfileUpdateAgentMode = {
+  socratic: 'socratic',
+  direct: 'direct',
+  beginner: 'beginner',
+  exam_coach: 'exam_coach',
+  deep_theory: 'deep_theory',
+  practical: 'practical',
+  error_diagnosis: 'error_diagnosis',
+  feynman: 'feynman',
+  math: 'math',
+  memory_coach: 'memory_coach',
+} as const;
+
 export interface LearningProfileUpdate {
   displayName?: string;
   quizFrequencyPreference?: LearningProfileUpdateQuizFrequencyPreference;
@@ -430,6 +510,13 @@ export interface LearningProfileUpdate {
   preferredDifficulty?: LearningProfileUpdatePreferredDifficulty;
   showExplanationsAfterCorrect?: boolean;
   enableHints?: boolean;
+  /** @nullable */
+  examDate?: string | null;
+  dailyStudyMinutes?: number;
+  preferredLanguage?: LearningProfileUpdatePreferredLanguage;
+  agentMode?: LearningProfileUpdateAgentMode;
+  strictSourceMode?: boolean;
+  socraticMode?: boolean;
 }
 
 export interface DashboardStats {
@@ -524,6 +611,28 @@ export interface CourseReadiness {
      */
   readiness: number | null;
   conceptCount: number;
+  /** 0-100 lesson step completion for the course */
+  percentComplete: number;
+}
+
+export interface Misconception {
+  id: string;
+  concept: string;
+  description: string;
+  frequency: number;
+  corrected: boolean;
+  suggestedFix: string;
+  detectedAt: string;
+  /** @nullable */
+  courseTitle?: string | null;
+}
+
+export interface ErrorPattern {
+  type: string;
+  frequency: number;
+  concepts: string[];
+  suggestedRemedy: string;
+  category: string;
 }
 
 export interface PrerequisiteRepair {
@@ -562,9 +671,30 @@ export interface LearnerModel {
   readinessByCourse: CourseReadiness[];
   /** Weak concepts whose prerequisite is also weak — fix the prerequisite first */
   prerequisiteRepairs: PrerequisiteRepair[];
+  /** Detected misconceptions from open mistakes and overconfident errors */
+  misconceptions: Misconception[];
+  /** Aggregated error patterns from observed mistakes */
+  errorPatterns: ErrorPattern[];
   dataPointsCollected: number;
   /** Graded interactions remaining until the model unlocks */
   nextInsightAt: number;
+  /** Evidence-based charts for analytics visuals */
+  visualAnalytics?: VisualAnalytics;
+}
+
+export interface VisualAnalytics {
+  masteryHeatmap: Array<{ concept: string; day: number; value: number }>;
+  learningTimeline: Array<{
+    id: string;
+    day: number;
+    label: string;
+    type: "lesson" | "quiz" | "review" | "error" | "mastery";
+    detail: string;
+    delta: number;
+  }>;
+  skillRadar: Array<{ label: string; value: number; max: number }>;
+  pipelineFlow: Array<{ from: string; to: string; value: number; color: string }>;
+  hasRealData: boolean;
 }
 
 export interface Concept {
@@ -609,6 +739,9 @@ export interface CourseConcepts {
 
 export interface OpenaiConversation {
   id: number;
+  userId: string;
+  /** @nullable */
+  courseId?: number | null;
   title: string;
   createdAt: string;
 }
@@ -627,8 +760,25 @@ export interface OpenaiConversationInput {
   stepId?: number;
 }
 
+export type OpenaiMessageInputMode = typeof OpenaiMessageInputMode[keyof typeof OpenaiMessageInputMode];
+
+
+export const OpenaiMessageInputMode = {
+  socratic: 'socratic',
+  direct: 'direct',
+  beginner: 'beginner',
+  exam_coach: 'exam_coach',
+  deep_theory: 'deep_theory',
+  practical: 'practical',
+  error_diagnosis: 'error_diagnosis',
+  feynman: 'feynman',
+  math: 'math',
+  memory_coach: 'memory_coach',
+} as const;
+
 export interface OpenaiMessageInput {
   content: string;
+  mode?: OpenaiMessageInputMode;
 }
 
 export interface OpenaiConversationWithMessages {
@@ -659,4 +809,153 @@ export interface OpenaiImageOutput {
 export interface OpenaiError {
   error: string;
 }
+
+export interface TaskReview {
+  conceptId: number;
+  courseId: number;
+  conceptTitle: string;
+  /** @nullable */
+  conceptDescription?: string | null;
+  /** @nullable */
+  courseTitle?: string | null;
+  dueAt: string;
+  stabilityDays: number;
+  difficulty: number;
+  reviewCount: number;
+  retrievability: number;
+  /** @nullable */
+  mastery?: number | null;
+  isOverdue: boolean;
+}
+
+export interface TaskMistake {
+  id: number;
+  courseId: number;
+  stepId: number;
+  /** @nullable */
+  conceptId?: number | null;
+  /** @nullable */
+  stepTitle?: string | null;
+  /** @nullable */
+  stepType?: string | null;
+  /** @nullable */
+  courseTitle?: string | null;
+  /** @nullable */
+  conceptTitle?: string | null;
+  createdAt: string;
+}
+
+export interface TaskQueue {
+  overdueCount: number;
+  reviews: TaskReview[];
+  mistakes: TaskMistake[];
+}
+
+export interface TaskCount {
+  count: number;
+}
+
+export type ConceptReviewInputRating = typeof ConceptReviewInputRating[keyof typeof ConceptReviewInputRating];
+
+
+export const ConceptReviewInputRating = {
+  again: 'again',
+  hard: 'hard',
+  good: 'good',
+  easy: 'easy',
+} as const;
+
+export interface ConceptReviewInput {
+  rating: ConceptReviewInputRating;
+}
+
+export interface ConceptReviewResult {
+  conceptId: number;
+  rating: string;
+  dueAt: string;
+  stabilityDays: number;
+}
+
+export interface StudyPlanBlock {
+  type: string;
+  title: string;
+  minutes: number;
+  priority: number;
+  /** @nullable */
+  href?: string | null;
+}
+
+export type StudyPlanWeakConceptsItem = { [key: string]: unknown };
+
+export interface StudyPlan {
+  dailyMinutes: number;
+  /** @nullable */
+  daysUntilExam?: number | null;
+  cramMode: boolean;
+  /** @nullable */
+  examDate?: string | null;
+  blocks: StudyPlanBlock[];
+  totalMinutes: number;
+  summary: string;
+  weakConcepts: StudyPlanWeakConceptsItem[];
+}
+
+export interface ErrorNotebookEntry {
+  id: number;
+  courseId: number;
+  stepId: number;
+  /** @nullable */
+  conceptId?: number | null;
+  status: string;
+  createdAt: string;
+  /** @nullable */
+  resolvedAt?: string | null;
+  /** @nullable */
+  stepTitle?: string | null;
+  /** @nullable */
+  stepType?: string | null;
+  /** @nullable */
+  courseTitle?: string | null;
+  /** @nullable */
+  conceptTitle?: string | null;
+  /** @nullable */
+  question?: string | null;
+  /** @nullable */
+  explanation?: string | null;
+  /** @nullable */
+  lastConfidence?: number | null;
+}
+
+export interface ErrorNotebook {
+  open: ErrorNotebookEntry[];
+  resolved: ErrorNotebookEntry[];
+  total: number;
+}
+
+export interface ExamMockQuestion {
+  index: number;
+  stepId: number;
+  courseId: number;
+  /** @nullable */
+  courseTitle?: string | null;
+  /** @nullable */
+  title?: string | null;
+  question: string;
+  type: string;
+  /** @nullable */
+  choices?: string[] | null;
+}
+
+export interface ExamMock {
+  durationMinutes: number;
+  questionCount: number;
+  startedAt: string;
+  questions: ExamMockQuestion[];
+}
+
+export type GetExamMockParams = {
+count?: number;
+courseId?: number;
+durationMinutes?: number;
+};
 

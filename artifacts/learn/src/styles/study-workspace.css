@@ -1,0 +1,101 @@
+/**
+ * Study Workspace density — Canvas / Notion-style (~14px body).
+ * Base zoom 100% (fits viewport without browser zoom).
+ * Display tier −5% vs prior 125%×large scale for proportional hierarchy.
+ */
+
+.study-workspace {
+  zoom: 1;
+  --ws-display: 1.1875rem; /* step titles (~19px) */
+  --ws-heading: 1.0625rem; /* sub-headings, formulas (~17px) */
+  --ws-body: 0.875rem; /* 14px body */
+  --ws-caption: 0.6875rem; /* 11px chrome */
+  --ws-compact-pad: 0.625rem;
+}
+
+@supports not (zoom: 1) {
+  .study-workspace {
+    transform: none;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* Display tier (−5% from prior oversized headings) */
+.study-workspace .ws-step-title {
+  font-size: var(--ws-display);
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.study-workspace .ws-formula-display {
+  font-size: var(--ws-heading);
+  line-height: 1.4;
+}
+
+.study-workspace .ws-card-lg {
+  font-size: var(--ws-heading);
+  line-height: 1.45;
+}
+
+/* Compact chrome — tool rail + lesson nav */
+.study-workspace .ws-tool-rail {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-height: 4.5rem;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.study-workspace .ws-tool-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--ws-caption);
+  line-height: 1.2;
+}
+
+.study-workspace .ws-tool-btn svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.study-workspace .ws-top-bar {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+.study-workspace .ws-lesson-pane {
+  padding: var(--ws-compact-pad) 1rem;
+}
+
+.study-workspace .ws-lesson-nav button {
+  font-size: var(--ws-caption);
+  padding: 0.2rem 0.45rem;
+}
+
+/* Large panel formula / card text inside workspace tools */
+.study-workspace .text-2xl {
+  font-size: var(--ws-heading) !important;
+  line-height: 1.35;
+}
+
+.study-workspace .text-xl {
+  font-size: var(--ws-display) !important;
+  line-height: 1.35;
+}
+
+.study-workspace .text-lg {
+  font-size: var(--ws-heading) !important;
+  line-height: 1.4;
+}
+
+.study-workspace .ws-muted {
+  color: #b8b3d4;
+}
+
+.study-workspace .ws-text-secondary {
+  color: #ddd9ee;
+}
+
+.study-workspace .ws-border-strong {
+  border-color: #5a5280;
+}

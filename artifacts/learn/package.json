@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
+    "dev": "cross-env PORT=20579 BASE_PATH=/ vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -38,24 +40,31 @@
     "@radix-ui/react-toggle": "^1.1.3",
     "@radix-ui/react-toggle-group": "^1.1.3",
     "@radix-ui/react-tooltip": "^1.2.0",
-    "@replit/vite-plugin-cartographer": "catalog:",
-    "@replit/vite-plugin-dev-banner": "catalog:",
-    "@replit/vite-plugin-runtime-error-modal": "catalog:",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-form": "^0.41.0",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "^1.95.0",
+    "@tanstack/router-devtools": "^1.95.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@workspace/api-client-react": "workspace:*",
+    "@workspace/clerk-config": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
+    "cross-env": "^7.0.3",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "catalog:",
     "input-otp": "^1.4.2",
+    "jsdom": "^25.0.1",
     "lucide-react": "catalog:",
     "next-themes": "^0.4.6",
     "react": "catalog:",
@@ -71,13 +80,24 @@
     "tw-animate-css": "^1.4.0",
     "vaul": "^1.1.2",
     "vite": "catalog:",
-    "wouter": "^3.3.5",
-    "zod": "catalog:"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "catalog:",
+    "workbox-window": "^7.4.1",
+    "zod": "catalog:",
+    "zustand": "^5.0.2"
   },
   "dependencies": {
     "@clerk/react": "^6.10.0",
     "@clerk/themes": "^2.4.57",
-    "internal": "link:@clerk/react/internal",
+    "better-auth": "^1.5.0",
     "react-markdown": "^10.1.0"
+  },
+  "optionalDependencies": {
+    "@replit/vite-plugin-cartographer": "^0.5.21",
+    "@replit/vite-plugin-dev-banner": "^0.1.1",
+    "@replit/vite-plugin-runtime-error-modal": "^0.0.6",
+    "@rollup/rollup-win32-x64-msvc": "4.60.3",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.3.1",
+    "lightningcss-win32-x64-msvc": "^1.32.0"
   }
 }

@@ -719,6 +719,8 @@ All secrets are managed by Replit's secrets system. **Never hard-code these.**
 
 ## 12. Local Development Setup
 
+> **Windows:** See [LOCAL_DEV_WINDOWS.md](./LOCAL_DEV_WINDOWS.md) for a full PowerShell guide (env files, proxy, DB migrations without `psql`, troubleshooting).
+
 ### Prerequisites
 
 - Node.js 24

@@ -1,20 +1,38 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation, useSearch } from "wouter";
-import { useListNotes, useCreateCourse, useGenerateCourseSteps, getListCoursesQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Brain, Code2, Layers, Loader2, Sparkles, Zap } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Link, useLocation, useSearch } from "@/lib/wouter-compat";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getListCoursesQueryKey,
+  useCreateCourse,
+  useGenerateCourseSteps,
+  useListNotes,
+} from "@workspace/api-client-react";
+import { ArrowLeft, Brain, Code2, Layers, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const COURSE_TYPES = [
-  { id: "theoretical", label: "Theoretical", icon: Brain, desc: "Concepts, explanations, and knowledge checks" },
-  { id: "practical", label: "Practical", icon: Code2, desc: "Code exercises and hands-on tasks" },
-  { id: "mixed", label: "Mixed", icon: Layers, desc: "Best of both — theory plus practice" },
+  {
+    id: "theoretical",
+    label: "Theoretical",
+    icon: Brain,
+    desc: "Concepts, explanations, and knowledge checks",
+  },
+  {
+    id: "practical",
+    label: "Practical",
+    icon: Code2,
+    desc: "Code exercises and hands-on tasks",
+  },
+  {
+    id: "mixed",
+    label: "Mixed",
+    icon: Layers,
+    desc: "Best of both — theory plus practice",
+  },
 ];
 
 const DIFFICULTIES = ["beginner", "intermediate", "advanced"];
@@ -35,9 +53,11 @@ export default function CreateCoursePage() {
 
   const { data: notes } = useListNotes();
   const createCourse = useCreateCourse();
-  const generateSteps = useGenerateCourseSteps();
+  const _generateSteps = useGenerateCourseSteps();
 
-  const allNotes = notes as Array<{ id: number; title: string; subject?: string; wordCount: number }> | undefined;
+  const allNotes = notes as
+    | Array<{ id: number; title: string; subject?: string; wordCount: number }>
+    | undefined;
 
   const [selectedNoteId, setSelectedNoteId] = useState(preselectedNoteId || "");
   const [courseType, setCourseType] = useState("theoretical");
@@ -73,7 +93,9 @@ export default function CreateCoursePage() {
       });
 
       const c = course as { id: number };
-      setGenerationStatus("AI is preparing your lesson — this takes about 15 seconds...");
+      setGenerationStatus(
+        "AI is preparing your lesson — this takes about 15 seconds...",
+      );
 
       const response = await fetch(`/api/courses/${c.id}/generate-steps`, {
         method: "POST",
@@ -90,7 +112,7 @@ export default function CreateCoursePage() {
         const { done, value } = await reader.read();
         if (done) break;
         const text = decoder.decode(value);
-        const lines = text.split("\n").filter(l => l.startsWith("data:"));
+        const lines = text.split("\n").filter((l) => l.startsWith("data:"));
         for (const line of lines) {
           try {
             const event = JSON.parse(line.slice(5));
@@ -101,16 +123,26 @@ export default function CreateCoursePage() {
             }
             if (event.status === "complete") {
               setProgress(100);
-              setGenerationStatus(`Your lesson is ready — ${event.totalSteps} steps!`);
-              await queryClient.invalidateQueries({ queryKey: getListCoursesQueryKey() });
+              setGenerationStatus(
+                `Your lesson is ready — ${event.totalSteps} steps!`,
+              );
+              await queryClient.invalidateQueries({
+                queryKey: getListCoursesQueryKey(),
+              });
               setTimeout(() => setLocation(`/courses/${c.id}`), 1000);
             }
             if (event.error) throw new Error(event.error);
-          } catch { /* skip malformed events */ }
+          } catch {
+            /* skip malformed events */
+          }
         }
       }
     } catch (err) {
-      toast({ title: "Failed to create course", description: String(err), variant: "destructive" });
+      toast({
+        title: "Failed to create course",
+        description: String(err),
+        variant: "destructive",
+      });
       setIsCreating(false);
       setGenerationStatus(null);
     }
@@ -132,7 +164,10 @@ export default function CreateCoursePage() {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="text-xs text-muted-foreground">Your AI tutor is studying your notes and crafting a personalized lesson...</p>
+        <p className="text-xs text-muted-foreground">
+          Your AI tutor is studying your notes and crafting a personalized
+          lesson...
+        </p>
       </div>
     );
   }
@@ -141,11 +176,15 @@ export default function CreateCoursePage() {
     <div className="max-w-2xl space-y-8">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/courses"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href="/courses">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Create Course</h1>
-          <p className="text-muted-foreground text-sm">Configure your AI-generated lesson</p>
+          <p className="text-muted-foreground text-sm">
+            Configure your AI-generated lesson
+          </p>
         </div>
       </div>
 
@@ -154,8 +193,12 @@ export default function CreateCoursePage() {
         {!allNotes?.length ? (
           <Card className="border-dashed border-border bg-transparent">
             <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground mb-3">No notes uploaded yet.</p>
-              <Button variant="outline" asChild><Link href="/notes">Upload Notes First</Link></Button>
+              <p className="text-muted-foreground mb-3">
+                No notes uploaded yet.
+              </p>
+              <Button variant="outline" asChild>
+                <Link href="/notes">Upload Notes First</Link>
+              </Button>
             </CardContent>
           </Card>
         ) : (
@@ -173,11 +216,16 @@ export default function CreateCoursePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-foreground">{note.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{note.wordCount.toLocaleString()} words{note.subject ? ` · ${note.subject}` : ""}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {note.wordCount.toLocaleString()} words
+                      {note.subject ? ` · ${note.subject}` : ""}
+                    </p>
                   </div>
                   {selectedNoteId === String(note.id) && (
                     <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                      <span className="text-[10px] text-primary-foreground font-bold">✓</span>
+                      <span className="text-[10px] text-primary-foreground font-bold">
+                        ✓
+                      </span>
                     </div>
                   )}
                 </div>
@@ -195,10 +243,14 @@ export default function CreateCoursePage() {
               key={id}
               onClick={() => setCourseType(id)}
               className={`p-4 rounded-xl border text-left transition-all ${
-                courseType === id ? "border-primary bg-primary/5" : "border-border bg-card hover:border-white/20"
+                courseType === id
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-card hover:border-white/20"
               }`}
             >
-              <Icon className={`h-5 w-5 mb-2 ${courseType === id ? "text-primary" : "text-muted-foreground"}`} />
+              <Icon
+                className={`h-5 w-5 mb-2 ${courseType === id ? "text-primary" : "text-muted-foreground"}`}
+              />
               <p className="font-medium text-sm text-foreground">{label}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
             </button>
@@ -210,12 +262,14 @@ export default function CreateCoursePage() {
         <div className="space-y-2">
           <Label>Difficulty Level</Label>
           <div className="space-y-2">
-            {DIFFICULTIES.map(d => (
+            {DIFFICULTIES.map((d) => (
               <button
                 key={d}
                 onClick={() => setDifficulty(d)}
                 className={`w-full py-2.5 px-4 rounded-lg border text-sm font-medium capitalize text-left transition-all ${
-                  difficulty === d ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-white/20 hover:text-foreground"
+                  difficulty === d
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border text-muted-foreground hover:border-white/20 hover:text-foreground"
                 }`}
               >
                 {d}
@@ -232,11 +286,19 @@ export default function CreateCoursePage() {
                 key={id}
                 onClick={() => setQuizFrequency(id)}
                 className={`w-full py-2.5 px-4 rounded-lg border text-sm text-left transition-all ${
-                  quizFrequency === id ? "border-primary bg-primary/5" : "border-border hover:border-white/20"
+                  quizFrequency === id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-white/20"
                 }`}
               >
-                <span className={`font-medium ${quizFrequency === id ? "text-primary" : "text-foreground"}`}>{label}</span>
-                <span className="text-xs text-muted-foreground ml-2">({desc})</span>
+                <span
+                  className={`font-medium ${quizFrequency === id ? "text-primary" : "text-foreground"}`}
+                >
+                  {label}
+                </span>
+                <span className="text-xs text-muted-foreground ml-2">
+                  ({desc})
+                </span>
               </button>
             ))}
           </div>
@@ -244,11 +306,14 @@ export default function CreateCoursePage() {
       </div>
 
       <div className="space-y-2">
-        <Label>Additional Instructions <span className="text-muted-foreground text-xs">(optional)</span></Label>
+        <Label>
+          Additional Instructions{" "}
+          <span className="text-muted-foreground text-xs">(optional)</span>
+        </Label>
         <Textarea
           placeholder="e.g. Focus more on practical examples, use Python code snippets, assume I already know basic calculus..."
           value={additionalInstructions}
-          onChange={e => setAdditionalInstructions(e.target.value)}
+          onChange={(e) => setAdditionalInstructions(e.target.value)}
           rows={3}
           className="resize-none"
         />

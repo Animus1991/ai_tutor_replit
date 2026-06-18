@@ -8,6 +8,9 @@
 
 export interface OpenaiConversation {
   id: number;
+  userId: string;
+  /** @nullable */
+  courseId?: number | null;
   title: string;
   createdAt: Date;
 }

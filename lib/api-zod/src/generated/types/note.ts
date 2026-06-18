@@ -5,6 +5,7 @@
  * LearnAI - AI-Powered Adaptive Learning Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { NoteSourceType } from './noteSourceType';
 
 export interface Note {
   id: number;
@@ -12,6 +13,11 @@ export interface Note {
   content: string;
   /** @nullable */
   subject?: string | null;
+  /** @nullable */
+  fileUrl?: string | null;
+  /** @nullable */
+  mimeType?: string | null;
+  sourceType?: NoteSourceType;
   wordCount: number;
   createdAt: Date;
   updatedAt: Date;

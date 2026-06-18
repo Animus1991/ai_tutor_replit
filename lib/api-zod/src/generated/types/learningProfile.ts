@@ -5,9 +5,11 @@
  * LearnAI - AI-Powered Adaptive Learning Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { LearningProfileAgentMode } from './learningProfileAgentMode';
 import type { LearningProfileLearningPacePreference } from './learningProfileLearningPacePreference';
 import type { LearningProfilePreferredCourseType } from './learningProfilePreferredCourseType';
 import type { LearningProfilePreferredDifficulty } from './learningProfilePreferredDifficulty';
+import type { LearningProfilePreferredLanguage } from './learningProfilePreferredLanguage';
 import type { LearningProfileQuizFrequencyPreference } from './learningProfileQuizFrequencyPreference';
 
 export interface LearningProfile {
@@ -41,6 +43,13 @@ export interface LearningProfile {
   readinessConfidence?: number | null;
   /** @nullable */
   learnerModelNotes?: string | null;
+  /** @nullable */
+  examDate?: Date | null;
+  dailyStudyMinutes?: number;
+  preferredLanguage?: LearningProfilePreferredLanguage;
+  agentMode?: LearningProfileAgentMode;
+  strictSourceMode?: boolean;
+  socraticMode?: boolean;
   /** @nullable */
   lastActiveAt?: Date | null;
 }

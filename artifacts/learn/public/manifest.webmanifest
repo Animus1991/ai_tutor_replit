@@ -1,0 +1,18 @@
+{
+  "name": "Synapse",
+  "short_name": "Synapse",
+  "description": "Upload your material. Get an adaptive AI tutor-course. Works offline for spaced reviews.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f18",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
